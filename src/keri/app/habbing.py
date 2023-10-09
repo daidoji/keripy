@@ -23,11 +23,8 @@ from ..kering import MissingSignatureError, Roles
 
 logger = help.ogler.getLogger()
 
-SALT = coring.Salter(raw=b'0123456789abcdef').qb64  # '0AAwMTIzNDU2Nzg5YWJjZGVm'
-
-
 @contextmanager
-def openHby(*, name="test", base="", temp=True, salt=SALT, **kwa):
+def openHby(*, name="test", base="", temp=True, salt=None, **kwa):
     """
     Context manager wrapper for Habery instance.
     Context 'with' statements call .close on exit of 'with' block
@@ -72,6 +69,7 @@ def openHby(*, name="test", base="", temp=True, salt=SALT, **kwa):
 
     """
     habery = None
+    salt = salt if not None else coring.Salter(raw=b'0123456789abcdef').qb64
     try:
         habery = Habery(name=name, base=base, temp=temp, salt=salt, **kwa)
         yield habery
@@ -221,7 +219,7 @@ class Habery:
         self.mgr = None  # wait to setup until after ks is known to be opened
         self.rtr = routing.Router()
         self.rvy = routing.Revery(db=self.db, rtr=self.rtr)
-        self.exc = exchanging.Exchanger(db=self.db, handlers=[], local=True)
+        self.exc = exchanging.Exchanger(hby=self, handlers=[])
         self.kvy = eventing.Kevery(db=self.db, lax=False, local=True, rvy=self.rvy)
         self.kvy.registerReplyRoutes(router=self.rtr)
         self.psr = parsing.Parser(framed=True, kvy=self.kvy, rvy=self.rvy, exc=self.exc)
@@ -296,7 +294,7 @@ class Habery:
                 aeid = signer.verfer.qb64  # lest it remove encryption
 
         if salt is None:  # salt for signing keys not aeid seed
-            salt = SALT
+            salt = coring.Salter(raw=b'0123456789abcdef').qb64
         else:
             salt = coring.Salter(qb64=salt).qb64
 
@@ -441,7 +439,6 @@ class Habery:
                 self.namespaces[ns] = dict()
             self.namespaces[ns][hab.pre] = hab
 
-
         return hab
 
     def makeGroupHab(self, group, mhab, smids, rmids=None, ns=None, **kwa):
@@ -559,7 +556,6 @@ class Habery:
                                                     f"identifier {rmid} in group's"
                                                     f" next members ={rmids}")
 
-
         # create group Hab in this Habery
         hab = GroupHab(ks=self.ks, db=self.db, cf=self.cf, mgr=self.mgr,
                        rtr=self.rtr, rvy=self.rvy, kvy=self.kvy, psr=self.psr,
@@ -628,7 +624,6 @@ class Habery:
         self.db.prefixes.remove(hab.pre)
 
         return True
-
 
     def extractMerfersMigers(self, smids, rmids=None):
         """
@@ -713,7 +708,6 @@ class Habery:
                     hab = nsp[pre]
 
         return hab
-
 
     def habByName(self, name, ns=None):
         """
@@ -1052,7 +1046,6 @@ class BaseHab:
             self.db.nmsp.put(keys=(self.ns, self.name),
                              val=habord)
 
-
     def reconfigure(self):
         """Apply configuration from config file managed by .cf. to this Hab.
         Assumes that .pre and signing keys have been setup in order to create
@@ -1346,22 +1339,39 @@ class BaseHab:
 
         return msg
 
-    def exchange(self, serder, save=False):
+    def exchange(self, route,
+                 payload,
+                 recipient,
+                 date=None,
+                 eid=None,
+                 dig=None,
+                 modifiers=None,
+                 embeds=None,
+                 save=False):
         """
         Returns signed exn, message of serder with count code and receipt
         couples (pre+cig)
         Builds msg and then processes it into own db to validate
         """
         # sign serder event
+
+        serder, end = exchanging.exchange(route=route,
+                                          payload=payload,
+                                          sender=self.pre,
+                                          recipient=recipient,
+                                          date=date,
+                                          dig=dig,
+                                          modifiers=modifiers,
+                                          embeds=embeds)
+
         if self.kever.prefixer.transferable:
-            seal = eventing.SealLast(i=self.kever.prefixer.qb64)
-            sigers = self.sign(ser=serder.raw,
-                               indexed=True)
-            msg = eventing.messagize(serder=serder, sigers=sigers, seal=seal)
+            msg = self.endorse(serder=serder, pipelined=False)
         else:
             cigars = self.sign(ser=serder.raw,
                                indexed=False)
             msg = eventing.messagize(serder, cigars=cigars)
+
+        msg.extend(end)
 
         if save:
             self.psr.parseOne(ims=bytearray(msg))  # process local copy into db
@@ -1878,7 +1888,7 @@ class BaseHab:
 
         for (_, erole, eid), end in self.db.ends.getItemIter(keys=(cid,)):
             if (end.enabled or end.allowed) and (not role or role == erole) and (not eids or eid in eids):
-                msgs.extend(self.replyLocScheme(eid=eid, scheme=scheme))
+                msgs.extend(self.loadLocScheme(eid=eid, scheme=scheme))
                 msgs.extend(self.loadEndRole(cid=cid, eid=eid, role=erole))
 
         msgs.extend(self.replay(cid))
@@ -2034,6 +2044,9 @@ class BaseHab:
                 route = cue["route"]
                 msg = self.reply(data=data, route=route)
                 yield msg
+
+    def witnesser(self):
+        return True
 
 
 class Hab(BaseHab):
@@ -2282,7 +2295,6 @@ class SignifyHab(BaseHab):
         """
         raise kering.KeriError("Signify hab does not support local signing")
 
-
     def rotate(self, *, serder=None, sigers=None, **kwargs):
         """
         Perform rotation operation. Register rotation in database.
@@ -2304,6 +2316,20 @@ class SignifyHab(BaseHab):
         """
         msg = eventing.messagize(serder, sigers=sigers)
         self.processEvent(serder, sigers)
+        return msg
+
+    def exchange(self, serder, seal=None, sigers=None, save=False):
+        """
+        Returns signed exn, message of serder with count code and receipt
+        couples (pre+cig)
+        Builds msg and then processes it into own db to validate
+        """
+        # sign serder event
+        msg = eventing.messagize(serder=serder, sigers=sigers, seal=seal)
+
+        if save:
+            self.psr.parseOne(ims=bytearray(msg))  # process local copy into db
+
         return msg
 
     def processEvent(self, serder, sigers):
@@ -2385,7 +2411,6 @@ class SignifyHab(BaseHab):
 
         # introduce yourself, please
         msgs.extend(self.replay(cid))
-
 
         return msgs
 
@@ -2730,3 +2755,16 @@ class GroupHab(BaseHab):
         serder = eventing.query(query=query, **kwa)
 
         return self.mhab.endorse(serder, last=True)
+
+    def witnesser(self):
+        kever = self.kever
+        keys = [verfer.qb64 for verfer in kever.verfers]
+        sigs = self.db.getSigs(dbing.dgKey(self.pre, kever.serder.saidb))
+        if not sigs:  # otherwise its a list of sigs
+            return False
+
+        sigers = [coring.Siger(qb64b=bytes(sig)) for sig in sigs]
+        windex = min([siger.index for siger in sigers])
+
+        # True if Elected to perform delegation and witnessing
+        return self.mhab.kever.verfers[0].qb64 == keys[windex]

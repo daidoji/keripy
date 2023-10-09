@@ -14,7 +14,7 @@ import traceback
 from ordered_set import OrderedSet as oset
 
 from hio.base import doing
-from hio.core import http
+from hio.core import http, tcp
 from hio.core.tcp import serving
 from hio.help import decking
 
@@ -34,7 +34,8 @@ from ..vdr.eventing import Tevery
 logger = help.ogler.getLogger()
 
 
-def setupWitness(hby, alias="witness", mbx=None, aids=None, tcpPort=5631, httpPort=5632):
+def setupWitness(hby, alias="witness", mbx=None, aids=None, tcpPort=5631, httpPort=5632,
+                 keypath=None, certpath=None, cafilepath=None):
     """
     Setup witness controller and doers
 
@@ -52,7 +53,7 @@ def setupWitness(hby, alias="witness", mbx=None, aids=None, tcpPort=5631, httpPo
 
     mbx = mbx if mbx is not None else storing.Mailboxer(name=alias, temp=hby.temp)
     forwarder = forwarding.ForwardHandler(hby=hby, mbx=mbx)
-    exchanger = exchanging.Exchanger(db=hby.db, handlers=[forwarder])
+    exchanger = exchanging.Exchanger(hby=hby, handlers=[forwarder])
     clienter = httping.Clienter()
     oobiery = keri.app.oobiing.Oobiery(hby=hby, clienter=clienter)
 
@@ -86,7 +87,7 @@ def setupWitness(hby, alias="witness", mbx=None, aids=None, tcpPort=5631, httpPo
     receiptEnd = ReceiptEnd(hab=hab, inbound=cues, aids=aids)
     app.add_route("/receipts", receiptEnd)
 
-    server = http.Server(port=httpPort, app=app)
+    server = createHttpServer(httpPort, app, keypath, certpath, cafilepath)
     httpServerDoer = http.ServerDoer(server=server)
 
     # setup doers
@@ -104,8 +105,32 @@ def setupWitness(hby, alias="witness", mbx=None, aids=None, tcpPort=5631, httpPo
                             responses=rep.cues, queries=httpEnd.qrycues)
 
     doers.extend(oobiRes)
-    doers.extend([regDoer, exchanger, httpServerDoer, rep, witStart, receiptEnd, *oobiery.doers])
+    doers.extend([regDoer, httpServerDoer, rep, witStart, receiptEnd, *oobiery.doers])
     return doers
+
+
+def createHttpServer(port, app, keypath=None, certpath=None, cafilepath=None):
+    """
+    Create an HTTP or HTTPS server depending on whether TLS key material is present
+    Parameters:
+        port (int)         : port to listen on for all HTTP(s) server instances
+        app (falcon.App)   : application instance to pass to the http.Server instance
+        keypath (string)   : the file path to the TLS private key
+        certpath (string)  : the file path to the TLS signed certificate (public key)
+        cafilepath (string): the file path to the TLS CA certificate chain file
+    Returns:
+        hio.core.http.Server
+    """
+    if keypath is not None and certpath is not None and cafilepath is not None:
+        servant = tcp.ServerTls(certify=False,
+                                keypath=keypath,
+                                certpath=certpath,
+                                cafilepath=cafilepath,
+                                port=port)
+        server = http.Server(port=port, app=app, servant=servant)
+    else:
+        server = http.Server(port=port, app=app)
+    return server
 
 
 class WitnessStart(doing.DoDoer):
@@ -125,8 +150,7 @@ class WitnessStart(doing.DoDoer):
         self.responses = responses if responses is not None else decking.Deck()
         self.cues = cues if cues is not None else decking.Deck()
 
-        doers = [doing.doify(self.start), doing.doify(self.msgDo),
-                 doing.doify(self.exchangerDo), doing.doify(self.escrowDo), doing.doify(self.cueDo)]
+        doers = [doing.doify(self.start), doing.doify(self.msgDo), doing.doify(self.escrowDo), doing.doify(self.cueDo)]
         super().__init__(doers=doers, **opts)
 
     def start(self, tymth=None, tock=0.0):
@@ -227,30 +251,6 @@ class WitnessStart(doing.DoDoer):
                     self.responses.append(cue)
                 yield self.tock
             yield self.tock
-
-    def exchangerDo(self, tymth=None, tock=0.0):
-        """
-        Returns doifiable Doist compatibile generator method (doer dog) to process
-            .exc responses and pass them on to the HTTPRespondant
-
-        Parameters:
-            tymth (function): injected function wrapper closure returned by .tymen() of
-                Tymist instance. Calling tymth() returns associated Tymist .tyme.
-            tock (float): injected initial tock value
-
-        Usage:
-            add result of doify on this method to doers list
-        """
-        self.wind(tymth)
-        self.tock = tock
-        _ = (yield self.tock)
-
-        while True:
-            for rep in self.exc.processResponseIter():
-                self.replies.append(rep)
-                yield  # throttle just do one cue at a time
-            yield
-
 
 class Indirector(doing.DoDoer):
     """
@@ -554,9 +554,6 @@ class MailboxDirector(doing.DoDoer):
         else:
             self.tvy = None
 
-        if self.exchanger is not None:
-            doers.extend([doing.doify(self.exchangerDo)])
-
         self.parser = parsing.Parser(ims=self.ims,
                                      framed=True,
                                      kvy=self.kvy,
@@ -701,42 +698,13 @@ class MailboxDirector(doing.DoDoer):
         while True:
             self.kvy.processEscrows()
             self.rvy.processEscrowReply()
+            if self.exchanger is not None:
+                self.exchanger.processEscrow()
             if self.tvy is not None:
                 self.tvy.processEscrows()
             if self.verifier is not None:
                 self.verifier.processEscrows()
 
-            yield
-
-    def exchangerDo(self, tymth=None, tock=0.0):
-        """
-         Returns doifiable Doist compatibile generator method (doer dog) to process
-            .tevery.cues deque
-
-        Doist Injected Attributes:
-            g.tock = tock  # default tock attributes
-            g.done = None  # default done state
-            g.opts
-
-        Parameters:
-            tymth is injected function wrapper closure returned by .tymen() of
-                Tymist instance. Calling tymth() returns associated Tymist .tyme.
-            tock is injected initial tock value
-
-        Usage:
-            add result of doify on this method to doers list
-        """
-        self.wind(tymth)
-        self.tock = tock
-        _ = (yield self.tock)
-
-        while True:
-            self.exchanger.processEscrow()
-            yield
-
-            for rep in self.exchanger.processResponseIter():
-                self.rep.reps.append(rep)
-                yield  # throttle just do one cue at a time
             yield
 
     @property

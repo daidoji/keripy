@@ -40,8 +40,6 @@ logger = help.ogler.getLogger()
 EscrowTimeoutPS = 3600  # seconds for partial signed escrow timeout
 
 
-
-
 @dataclass(frozen=True)
 class TraitCodex:
     """
@@ -544,7 +542,7 @@ def fetchTsgs(db, saider, snh=None):
                 prefixer (Prefixer): instance trans signer aid,
                 seqner (Seqner): of sn of trans signer key state est event
                 diger (Diger): of digest of trans signer key state est event
-                signers (list): of Siger instances of indexed signatures
+                sigers (list): of Siger instances of indexed signatures
 
     Parameters:
         db: (Cesr
@@ -1370,8 +1368,6 @@ def bare(route="",
     _, sad = coring.Saider.saidify(sad=sad)
 
     return Serder(ked=sad)  # return serialized Self-Addressed Data (SAD)
-
-
 
 
 def messagize(serder, *, sigers=None, seal=None, wigers=None, cigars=None,
@@ -2917,15 +2913,6 @@ class Kevery:
         ilk = ked["t"]
         said = serder.said
 
-        # if not self.lax:  # otherwise in promiscuous mode
-        #     if self.local:
-        #         if pre not in self.prefixes:  # nonlocal event when in local mode
-        #             raise ValueError("Nonlocal event pre={} not in prefixes={}."
-        #                              "when local mode.".format(pre, self.prefixes))
-        #     else:
-        #         if pre in self.prefixes:  # local event when in nonlocal mode
-        #             raise ValueError("Local event pre={} in prefixes when "
-        #                              "nonlocal mode.".format(pre, self.prefixes))
 
         if pre not in self.kevers:  # first seen event for pre
             if ilk in (Ilks.icp, Ilks.dip):  # first seen and inception so verify event keys
@@ -3552,7 +3539,7 @@ class Kevery:
                                         aid=aid, osaider=osaider, cigars=cigars,
                                         tsgs=tsgs)
         if not accepted:
-            raise UnverifiedReplyError(f"Unverified reply.")
+            raise UnverifiedReplyError(f"Unverified reply. {serder.ked}")
 
         self.updateEnd(keys=keys, saider=saider, allowed=allowed)  # update .eans and .ends
 
@@ -3649,10 +3636,9 @@ class Kevery:
                                       aid=aid, osaider=osaider, cigars=cigars,
                                       tsgs=tsgs)
         if not accepted:
-            raise UnverifiedReplyError(f"Unverified reply.")
+            raise UnverifiedReplyError(f"B Unverified reply. {serder.ked}")
 
         self.updateLoc(keys=keys, saider=saider, url=url)  # update .lans and .locs
-
 
     def processReplyKeyStateNotice(self, *, serder, saider, route,
                                    cigars=None, tsgs=None, **kwargs):
@@ -3764,7 +3750,7 @@ class Kevery:
                                         aid=aid, osaider=osaider, cigars=cigars,
                                         tsgs=tsgs)
         if not accepted:
-            raise UnverifiedReplyError(f"Unverified reply.")
+            raise UnverifiedReplyError(f"C Unverified reply. {serder.ked}")
 
         ldig = self.db.getKeLast(key=snKey(pre=pre, sn=sn))  # retrieve dig of last event at sn.
         diger = coring.Diger(qb64=ksr.d)

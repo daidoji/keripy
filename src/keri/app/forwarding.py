@@ -73,14 +73,18 @@ class Poster(doing.DoDoer):
 
                 ends = hab.endsFor(recp)
                 try:
-                    if Roles.controller in ends:
-                        yield from self.sendDirect(hab, ends[Roles.controller], serder=srdr, atc=atc)
-                    elif Roles.agent in ends:
-                        yield from self.sendDirect(hab, ends[Roles.agent], serder=srdr, atc=atc)
-                    elif Roles.mailbox in ends:
-                        yield from self.forward(hab, ends[Roles.mailbox], recp=recp, serder=srdr, atc=atc, topic=tpc)
+                    # If there is a controller, agent or mailbox in ends, send to all
+                    if {Roles.controller, Roles.agent, Roles.mailbox} & set(ends):
+                        for role in (Roles.controller, Roles.agent, Roles.mailbox):
+                            if role in ends:
+                                if role == Roles.mailbox:
+                                    yield from self.forward(hab, ends[role], recp=recp, serder=srdr, atc=atc, topic=tpc)
+                                else:
+                                    yield from self.sendDirect(hab, ends[role], serder=srdr, atc=atc)
+
+                    # otherwise send to one witness
                     elif Roles.witness in ends:
-                        yield from self.forward(hab, ends[Roles.witness], recp=recp, serder=srdr, atc=atc, topic=tpc)
+                        yield from self.forwardToWitness(hab, ends[Roles.witness], recp=recp, serder=srdr, atc=atc, topic=tpc)
                     else:
                         logger.info(f"No end roles for {recp} to send evt={recp}")
                         continue
@@ -119,6 +123,19 @@ class Poster(doing.DoDoer):
 
         self.evts.append(evt)
 
+    def sent(self, said):
+        """ Check if message with given SAID was sent
+
+        Parameters:
+            said (str): qb64 SAID of message to check for
+        """
+
+        for cue in self.cues:
+            if cue["said"] == said:
+                return True
+
+        return False
+
     def sendEvent(self, hab, fn=0):
         """ Returns generator for sending event and waiting until send is complete """
         # Send KEL event for processing
@@ -138,15 +155,15 @@ class Poster(doing.DoDoer):
             yield self.tock
 
     def sendDirect(self, hab, ends, serder, atc):
-        ctrl, locs = random.choice(list(ends.items()))
-        witer = agenting.messengerFrom(hab=hab, pre=ctrl, urls=locs)
+        for ctrl, locs in ends.items():
+            witer = agenting.messengerFrom(hab=hab, pre=ctrl, urls=locs)
 
-        msg = bytearray(serder.raw)
-        if atc is not None:
-            msg.extend(atc)
+            msg = bytearray(serder.raw)
+            if atc is not None:
+                msg.extend(atc)
 
-        witer.msgs.append(bytearray(msg))  # make a copy
-        self.extend([witer])
+            witer.msgs.append(bytearray(msg))  # make a copy
+            self.extend([witer])
 
         while not witer.idle:
             _ = (yield self.tock)
@@ -168,22 +185,51 @@ class Poster(doing.DoDoer):
         msg = bytearray()
         msg.extend(introduce(hab, mbx))
         # create the forward message with payload embedded at `a` field
-        fwd = exchanging.exchange(route='/fwd', modifiers=dict(pre=recp, topic=topic),
-                                  payload=serder.ked)
-        ims = hab.endorse(serder=fwd, last=True, pipelined=False)
+
+        evt = bytearray(serder.raw)
+        evt.extend(atc)
+        fwd, atc = exchanging.exchange(route='/fwd', modifiers=dict(pre=recp, topic=topic),
+                                       payload={}, embeds=dict(evt=evt), sender=hab.pre)
+        ims = hab.endorse(serder=fwd, last=False, pipelined=False)
 
         # Transpose the signatures to point to the new location
-        if atc is not None:
-            pathed = bytearray()
-            pather = coring.Pather(path=["a"])
-            pathed.extend(pather.qb64b)
-            pathed.extend(atc)
-            ims.extend(coring.Counter(code=coring.CtrDex.PathedMaterialQuadlets,
-                                      count=(len(pathed) // 4)).qb64b)
-            ims.extend(pathed)
-
         witer = agenting.messengerFrom(hab=hab, pre=mbx, urls=mailbox)
         msg.extend(ims)
+        msg.extend(atc)
+
+        witer.msgs.append(bytearray(msg))  # make a copy
+        self.extend([witer])
+
+        while not witer.idle:
+            _ = (yield self.tock)
+
+    def forwardToWitness(self, hab, ends, recp, serder, atc, topic):
+        # If we are one of the mailboxes, just store locally in mailbox
+        owits = oset(ends.keys())
+        if self.mbx and owits.intersection(hab.prefixes):
+            msg = bytearray(serder.raw)
+            if atc is not None:
+                msg.extend(atc)
+            self.mbx.storeMsg(topic=f"{recp}/{topic}".encode("utf-8"), msg=msg)
+            return
+
+        # Its not us, randomly select a mailbox and forward it on
+        mbx, mailbox = random.choice(list(ends.items()))
+        msg = bytearray()
+        msg.extend(introduce(hab, mbx))
+        # create the forward message with payload embedded at `a` field
+
+        evt = bytearray(serder.raw)
+        evt.extend(atc)
+        fwd, atc = exchanging.exchange(route='/fwd', modifiers=dict(pre=recp, topic=topic),
+                                       payload={}, embeds=dict(evt=evt), sender=hab.pre)
+        ims = hab.endorse(serder=fwd, last=False, pipelined=False)
+
+        # Transpose the signatures to point to the new location
+        witer = agenting.messengerFrom(hab=hab, pre=mbx, urls=mailbox)
+        msg.extend(ims)
+        msg.extend(atc)
+
         witer.msgs.append(bytearray(msg))  # make a copy
         self.extend([witer])
 
@@ -191,8 +237,7 @@ class Poster(doing.DoDoer):
             _ = (yield self.tock)
 
 
-
-class ForwardHandler(doing.Doer):
+class ForwardHandler:
     """
     Handler for forward `exn` messages used to envelope other KERI messages intended for another recipient.
     This handler acts as a mailbox for other identifiers and stores the messages in a local database.
@@ -228,68 +273,45 @@ class ForwardHandler(doing.Doer):
 
     resource = "/fwd"
 
-    def __init__(self, hby, mbx, cues=None, **kwa):
+    def __init__(self, hby, mbx):
         """
 
         Parameters:
+            hby (Habery): database environment
             mbx (Mailboxer): message storage for store and forward
-            formats (list) of format str names accepted for offers
-            cues (Optional(decking.Deck)): outbound cue messages
 
         """
         self.hby = hby
-        self.msgs = decking.Deck()
-        self.cues = cues if cues is not None else decking.Deck()
         self.mbx = mbx
 
-        super(ForwardHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """ Handle incoming messages by parsing and verifiying the credential and storing it in the wallet
+    def handle(self, serder, attachments=None):
+        """  Do route specific processsing of IPEX protocol exn messages
 
         Parameters:
-            tymth (function): injected function wrapper closure returned by .tymen() of
-                Tymist instance. Calling tymth() returns associated Tymist .tyme.
-            tock (float): injected initial tock value
-
-        Messages:
-            payload is dict representing the body of a /credential/issue message
-            pre is qb64 identifier prefix of sender
-            sigers is list of Sigers representing the sigs on the /credential/issue message
-            verfers is list of Verfers of the keys used to sign the message
+            serder (Serder): Serder of the IPEX protocol exn message
+            attachments (list): list of tuples of root pathers and CESR SAD path attachments to the exn event
 
         """
-        # start enter context
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
 
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-                payload = msg["payload"]
-                modifiers = msg["modifiers"]
-                attachments = msg["attachments"]
+        embeds = serder.ked['e']
+        modifiers = serder.ked['q'] if 'q' in serder.ked else {}
 
-                recipient = modifiers["pre"]
-                topic = modifiers["topic"]
-                resource = f"{recipient}/{topic}"
+        recipient = modifiers["pre"]
+        topic = modifiers["topic"]
+        resource = f"{recipient}/{topic}"
 
-                pevt = bytearray()
-                for pather, atc in attachments:
-                    ked = pather.resolve(payload)
-                    sadder = coring.Sadder(ked=ked, kind=eventing.Serials.json)
-                    pevt.extend(sadder.raw)
-                    pevt.extend(atc)
+        pevt = bytearray()
+        for pather, atc in attachments:
+            ked = pather.resolve(embeds)
+            sadder = coring.Sadder(ked=ked, kind=eventing.Serials.json)
+            pevt.extend(sadder.raw)
+            pevt.extend(atc)
 
-                if not pevt:
-                    print("error with message, nothing to forward", msg)
-                    continue
+        if not pevt:
+            print("error with message, nothing to forward", serder.ked)
+            return
 
-                self.mbx.storeMsg(topic=resource, msg=pevt)
-                yield self.tock
-
-            yield self.tock
+        self.mbx.storeMsg(topic=resource, msg=pevt)
 
 
 def introduce(hab, wit):

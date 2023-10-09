@@ -13,8 +13,10 @@ from hio.base import doing
 from keri import kering
 from keri.app import grouping, indirecting, habbing, forwarding
 from keri.app.cli.common import rotating, existing, displaying, config
+from keri.app.notifying import Notifier
 from keri.core import coring
 from keri.db import dbing
+from keri.peer import exchanging
 
 logger = help.ogler.getLogger()
 
@@ -85,8 +87,12 @@ class GroupMultisigRotate(doing.DoDoer):
         
         self.hby = existing.setupHby(name=name, base=base, bran=bran)
         self.hbyDoer = habbing.HaberyDoer(habery=self.hby)  # setup doer
+        notifier = Notifier(self.hby)
+        mux = grouping.Multiplexor(self.hby, notifier=notifier)
+        exc = exchanging.Exchanger(hby=self.hby, handlers=[])
+        grouping.loadHandlers(exc, mux)
 
-        mbd = indirecting.MailboxDirector(hby=self.hby, topics=['/receipt', '/multisig'])
+        mbd = indirecting.MailboxDirector(hby=self.hby, topics=['/receipt', '/multisig'], exc=exc)
         self.counselor = grouping.Counselor(hby=self.hby)
         self.postman = forwarding.Poster(hby=self.hby)
 
@@ -182,7 +188,7 @@ class GroupMultisigRotate(doing.DoDoer):
                         raise kering.ConfigurationError(f"non-existant event {sn} for rotation member {mid}")
 
                     evt = self.hby.db.getEvt(dbing.dgKey(mid, bytes(dig)))
-                    serder = coring.Serder(raw=evt)
+                    serder = coring.Serder(raw=bytes(evt))
                     if not serder.est:
                         raise kering.ConfigurationError(f"invalid event {sn} for rotation member {mid}")
 
@@ -192,7 +198,6 @@ class GroupMultisigRotate(doing.DoDoer):
                 case _:
                     raise kering.ConfigurationError(f"invalid rmid representation {rmid}")
 
-
         if ghab.mhab.pre not in smids:
             raise kering.ConfigurationError(f"{ghab.mhab.pre} not in signing members {smids} for this event")
 
@@ -201,29 +206,23 @@ class GroupMultisigRotate(doing.DoDoer):
         rot = ghab.rotate(isith=self.isith, nsith=self.nsith,
                           toad=self.toad, cuts=list(self.cuts), adds=list(self.adds), data=self.data,
                           verfers=merfers, digers=migers)
+
         rserder = coring.Serder(raw=rot)
-        del rot[:rserder.size]
-
-
         # Create a notification EXN message to send to the other agents
         exn, ims = grouping.multisigRotateExn(ghab=ghab,
                                               smids=smids,
                                               rmids=rmids,
-                                              ked=rserder.ked)
+                                              rot=bytearray(rot))
         others = list(oset(smids + (rmids or [])))
 
         others.remove(ghab.mhab.pre)
 
         for recpt in others:  # Send event AND notification message to others
-            self.postman.send(src=ghab.mhab.pre, dest=recpt, topic="multisig", serder=rserder,
-                              attachment=bytearray(rot))
-
             self.postman.send(src=ghab.mhab.pre,
                               dest=recpt,
                               topic="multisig",
                               serder=exn,
                               attachment=bytearray(ims))
-
 
         self.counselor.start(ghab=ghab, prefixer=prefixer, seqner=seqner, saider=rserder.saider)
 

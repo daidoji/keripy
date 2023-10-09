@@ -16,7 +16,9 @@ from hio.base import doing
 from keri import help, kering
 from keri.app import indirecting, grouping, habbing, forwarding
 from keri.app.cli.common import existing, displaying
+from keri.app.notifying import Notifier
 from keri.core import coring
+from keri.peer import exchanging
 
 logger = help.ogler.getLogger()
 
@@ -87,7 +89,12 @@ class GroupMultisigIncept(doing.DoDoer):
         if "delpre" in self.inits:
             topics.append('/delegate')
 
-        self.mbx = indirecting.MailboxDirector(hby=self.hby, topics=topics)
+        notifier = Notifier(self.hby)
+        mux = grouping.Multiplexor(self.hby, notifier=notifier)
+        exc = exchanging.Exchanger(hby=self.hby, handlers=[])
+        grouping.loadHandlers(exc, mux)
+
+        self.mbx = indirecting.MailboxDirector(hby=self.hby, topics=topics, exc=exc)
         self.counselor = grouping.Counselor(hby=self.hby)
         self.postman = forwarding.Poster(hby=self.hby)
 
@@ -131,22 +138,18 @@ class GroupMultisigIncept(doing.DoDoer):
             ghab = self.hby.makeGroupHab(group=self.group, mhab=hab, smids=smids,
                                          rmids=rmids, **self.inits)
 
-            evt = ghab.makeOwnInception(allowPartiallySigned=True)
-            serder = coring.Serder(raw=evt)
-            del evt[:serder.size]
+            icp = ghab.makeOwnInception(allowPartiallySigned=True)
 
             # Create a notification EXN message to send to the other agents
             exn, ims = grouping.multisigInceptExn(ghab.mhab,
                                                   smids=ghab.smids,
                                                   rmids=ghab.rmids,
-                                                  ked=serder.ked)
+                                                  icp=icp)
             others = list(oset(smids + (rmids or [])))
 
             others.remove(ghab.mhab.pre)
 
             for recpt in others:  # this goes to other participants only as a signaling mechanism
-                self.postman.send(src=ghab.mhab.pre, dest=recpt, topic="multisig", serder=serder,
-                                  attachment=bytearray(evt))
                 self.postman.send(src=ghab.mhab.pre,
                                   dest=recpt,
                                   topic="multisig",

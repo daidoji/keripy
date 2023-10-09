@@ -197,7 +197,7 @@ class Respondant(doing.DoDoer):
                     forwardHab = senderHab
 
                 # sign the exn to get the signature
-                eattach = senderHab.endorse(exn, last=True, pipelined=False)
+                eattach = senderHab.endorse(exn, last=False, pipelined=False)
                 del eattach[:exn.size]
                 self.postman.send(recipient, topic=topic, serder=exn, hab=forwardHab, attachment=eattach)
 
@@ -249,6 +249,7 @@ class Respondant(doing.DoDoer):
                     src = cue["src"]
                     dest = cue["dest"]
                     msgs = cue["msgs"]
+
                     hab = self.hby.habByPre(src)
                     if hab is None:
                         continue
@@ -261,7 +262,6 @@ class Respondant(doing.DoDoer):
                         serder = coring.Serder(raw=raw)
                         del raw[:serder.size]
                         self.postman.send(dest, topic="replay", serder=serder, hab=hab, attachment=raw)
-
 
                 elif cueKin in ("reply",):
                     src = cue["src"]

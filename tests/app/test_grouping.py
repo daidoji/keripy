@@ -3,13 +3,12 @@
 tests.app.grouping module
 
 """
-import time
 from contextlib import contextmanager
 
-from hio.base import doing, tyming
 
 from keri.app import habbing, grouping, notifying
 from keri.core import coring, eventing, parsing
+from keri.vdr import eventing as veventing
 from keri.db import dbing
 from keri.peer import exchanging
 
@@ -81,12 +80,10 @@ def test_counselor():
         # First Partial Rotation
         hab1.rotate()
         hab2.rotate()
-        smids = [hab1.pre, hab2.pre]
         merfers = [hab1.kever.verfers[0], hab2.kever.verfers[0]]
-        rmids = [hab1.pre, hab2.pre]
         migers = [hab1.kever.digers[0], hab2.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
         rot = ghab.rotate(isith="2", nsith="2", toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
 
@@ -138,12 +135,10 @@ def test_counselor():
 
         hab1.rotate()
         hab2.rotate()
-        smids = [hab1.pre, hab2.pre]
         merfers = [hab1.kever.verfers[0], hab2.kever.verfers[0]]
-        rmids = [hab1.pre, hab2.pre, hab3.pre]
         migers = [hab1.kever.digers[0], hab2.kever.digers[0], hab3.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
         rot = ghab.rotate(isith="2", nsith="2", toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
 
@@ -196,12 +191,10 @@ def test_counselor():
         # Third Partial Rotation with Recovery
         hab1.rotate()
         hab3.rotate()
-        smids = [hab1.pre, hab3.pre]
         merfers = [hab1.kever.verfers[0], hab3.kever.verfers[0]]
-        rmids = smids
         migers = [hab1.kever.digers[0], hab3.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
         rot = ghab.rotate(isith="2", nsith="2", toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
 
@@ -256,7 +249,6 @@ def test_the_seven():
         counselor = grouping.Counselor(hby=hby1)
 
         # All the Habs, this will come in handy later
-        habs =[hab1, hab2, hab3, hab4, hab5, hab6, hab7]
         # Keverys so we can process each other's inception messages.
         kev1 = eventing.Kevery(db=hab1.db, lax=True, local=False)
         kev2 = eventing.Kevery(db=hab2.db, lax=True, local=False)
@@ -379,15 +371,13 @@ def test_the_seven():
         hab1.rotate()
         hab2.rotate()
         hab3.rotate()
-        smids = [hab1.pre, hab2.pre, hab3.pre]
         merfers = [hab1.kever.verfers[0], hab2.kever.verfers[0], hab3.kever.verfers[0]]
-        rmids = [hab1.pre, hab2.pre, hab3.pre, hab4.pre, hab5.pre, hab6.pre, hab7.pre]
         migers = [hab1.kever.digers[0], hab2.kever.digers[0], hab3.kever.digers[0], hab4.kever.digers[0],
                   hab5.kever.digers[0], hab6.kever.digers[0], hab7.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
-        rot = ghab.rotate(isith='["1/3", "1/3", "1/3"]', nsith='["1/3", "1/3", "1/3", "1/3", "1/3", "1/3", "1/3"]'
-                          , toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
+        rot = ghab.rotate(isith='["1/3", "1/3", "1/3"]', nsith='["1/3", "1/3", "1/3", "1/3", "1/3", "1/3", "1/3"]',
+                          toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
 
         counselor.start(ghab=ghab, prefixer=prefixer, seqner=seqner, saider=rserder.saider)
@@ -445,15 +435,13 @@ def test_the_seven():
         hab1.rotate()
         hab2.rotate()
         hab3.rotate()
-        smids = [hab1.pre, hab2.pre, hab3.pre]
         merfers = [hab1.kever.verfers[0], hab2.kever.verfers[0], hab3.kever.verfers[0]]
-        rmids = [hab1.pre, hab2.pre, hab3.pre, hab4.pre, hab5.pre, hab6.pre, hab7.pre]
         migers = [hab1.kever.digers[0], hab2.kever.digers[0], hab3.kever.digers[0], hab4.kever.digers[0],
                   hab5.kever.digers[0], hab6.kever.digers[0], hab7.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
-        rot = ghab.rotate(isith='["1/3", "1/3", "1/3"]', nsith='["1/3", "1/3", "1/3", "1/3", "1/3", "1/3", "1/3"]'
-                          , toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
+        rot = ghab.rotate(isith='["1/3", "1/3", "1/3"]', nsith='["1/3", "1/3", "1/3", "1/3", "1/3", "1/3", "1/3"]',
+                          toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
 
         counselor.start(ghab=ghab, prefixer=prefixer, seqner=seqner, saider=rserder.saider)
@@ -527,12 +515,10 @@ def test_the_seven():
         hab4.rotate()
         hab5.rotate()
         hab6.rotate()
-        smids = [hab4.pre, hab5.pre, hab6.pre]
         merfers = [hab4.kever.verfers[0], hab5.kever.verfers[0], hab6.kever.verfers[0]]
-        rmids = smids
         migers = [hab4.kever.digers[0], hab5.kever.digers[0], hab6.kever.digers[0]]
         prefixer = coring.Prefixer(qb64=ghab.pre)
-        seqner = coring.Seqner(sn=ghab.kever.sn+1)
+        seqner = coring.Seqner(sn=ghab.kever.sn + 1)
         rot = ghab4.rotate(isith='["1/3", "1/3", "1/3"]', nsith='["1/3", "1/3", "1/3"]',
                            toad=0, cuts=list(), adds=list(), verfers=merfers, digers=migers)
         rserder = coring.Serder(raw=rot)
@@ -648,226 +634,175 @@ def openMultiSig(prefix="test", salt=b'0123456789abcdef', temp=True, **kwa):
 def test_multisig_incept(mockHelpingNowUTC):
     with habbing.openHab(name="test", temp=True) as (hby, hab):
         aids = [hab.pre, "EfrzbTSWjccrTdNRsFUUfwaJ2dpYxu9_5jI2PJ-TRri0"]
-        exn, atc = grouping.multisigInceptExn(hab=hab, smids=aids, rmids=aids, ked=hab.kever.serder.ked)
+        exn, atc = grouping.multisigInceptExn(hab=hab, smids=aids, rmids=aids,
+                                              icp=hab.makeOwnEvent(sn=hab.kever.sn))
 
         assert exn.ked["r"] == '/multisig/icp'
-        assert exn.saidb == b'EOgdGcAn757slSJ1NS5LhGe-zebnL4zi4Uxo-UaMuH9T'
-        assert atc == (b'-HABEIaGMMWJFPmtXznY1IIiKDIrg-vIyge6mBl2QV8dDjI3-AABAADWUWkkQDAM'
-                       b'AGvVIlQ6qPJceInrSzqnkCUuHfimfVG6g22OAiyudhD5veBtzjz8UjFpoSSTeZCT'
-                       b'J1n0ZmELHFAL')
+        assert exn.saidb == b'EGDEBUZW--n-GqOOwRflzBeqoQsYWKMOQVU_1YglG-BL'
+        assert atc == (b'-FABEIaGMMWJFPmtXznY1IIiKDIrg-vIyge6mBl2QV8dDjI30AAAAAAAAAAAAAAA'
+                       b'AAAAAAAAEIaGMMWJFPmtXznY1IIiKDIrg-vIyge6mBl2QV8dDjI3-AABAAC84-o2'
+                       b'HKwKxhL1ttzykB9zuFaGV6OpQ05b1ZJYAeBFrR7kVON1aNjpLgQCG_0bY4FUiP7F'
+                       b'GTVDrBjuFhbeDKAH-LAa5AACAA-e-icp-AABAACihaKoLnoXxRoxGbFfOy67YSh6'
+                       b'UxtgjT2oxupnLDz2FlhevGJKTMObbdex9f0Hqob6uTavSJvsXf5RzitskkkC')
         data = exn.ked["a"]
         assert data["smids"] == aids
-        assert data["ked"] == hab.kever.serder.ked
+        assert "icp" in exn.ked['e']
 
 
 def test_multisig_rotate(mockHelpingNowUTC):
     with openMultiSig(prefix="test") as ((hby1, ghab1), (_, _), (_, _)):
-        exn, atc = grouping.multisigRotateExn(ghab=ghab1, smids=ghab1.smids, rmids=ghab1.rmids, ked=dict())
+        rot = (b'{"v":"KERI10JSON00023c_","t":"rot","d":"EGt_CZZASnY_iyB14ZXGQ4MxMtcSVW5oMHAu'
+               b'LM8BnqxV","i":"EL-f5D0esAFbZTzK9W3wtTgDmncye9IOnF0Z8gRdICIU","s":"3","p":"EH'
+               b'V57zdXq3lB3PZ4mmlOWt4SOOubIKDpcG5sSZh5jayZ","kt":["1/3","1/3","1/3"],"k":["D'
+               b'OKBAV-_3Z63w7yGmzu6pZCdUlpnEytbnChUhiTZGLa_","DOKFe0a-q2yyi_Yyh9wxLsSnG9e3nx'
+               b'vAXlgMaIFSo0YE","DKq5vZxsl7lCtFkuxSdfRRm-Edzdk_mRnh3xlVESXpck"],"nt":["1/3",'
+               b'"1/3","1/3"],"n":["EGX_K2uTEU6NOXfNo0VfhYLMrqADYHOoNk7WtT1SXOo2","EFl4us5uR0'
+               b'hCiYcW7YyOaSAo-7zp8x1uBVU2E_tmhEwj","EMyxeTiM_cH5IHUI6nummgHMeW-_1oKw7rvqlDd'
+               b'gha9v"],"bt":"0","br":[],"ba":[],"a":[]}')
+        exn, atc = grouping.multisigRotateExn(ghab=ghab1, smids=ghab1.smids, rmids=ghab1.rmids, rot=rot)
 
         assert exn.ked["r"] == '/multisig/rot'
-        assert exn.saidb == b'EDA_jhxl8dxOjym2IQ0qW6LhZlG1vL8OrNtYb5En3o44'
-        assert atc == (b'-HABEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba-AABAAD6tICmQtM0'
-                       b'oIiSLU5bDr_5xjLCc4nKJxiWcDkvUJWQn17K38TirWObrkYM45q68YP00z-KYrYI'
-                       b'uY51hpx6wEYD')
+        assert exn.saidb == b'ENfCk9DUUck6Ixe6cYnbCbJfIsisA3H4kHPwm5Z-2Tf8'
+        assert atc == (b'-FABEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba0AAAAAAAAAAAAAAA'
+                       b'AAAAAAAAEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba-AABAADChiAf'
+                       b'iExAQ2ETkzzf7MOubXV9mL-r6fPsOI4yn348yeE5dXqdI7ddn5-wnPwNVjqqKkDp'
+                       b'xlOEFYRiBQEbwZQC')
 
         data = exn.ked["a"]
         assert data["smids"] == ghab1.smids
         assert data["gid"] == ghab1.pre
-        assert data["ked"] == dict()
+        assert "rot" in exn.ked["e"]
 
 
 def test_multisig_interact(mockHelpingNowUTC):
     with openMultiSig(prefix="test") as ((hby1, ghab1), (_, _), (_, _)):
+        ixn = ghab1.mhab.interact()
         exn, atc = grouping.multisigInteractExn(ghab=ghab1, aids=ghab1.smids,
-                                                data=[{"i": 1, "x": 0, "d": 2}])
+                                                ixn=ixn)
 
         assert exn.ked["r"] == '/multisig/ixn'
-        assert exn.saidb == b'EN9CoGmdCd8fNaYK3FrYUJhmJHL7aZ3OhFZzEutJ5xZZ'
-        assert atc == (b'-HABEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba-AABAABKPpOh4dSt'
-                       b'geh8iLU95Vk9dtOyvCujQu6zsy0a5cvHctgew_acCv4ZAT_oYneVBDkPnEdcdFJW'
-                       b'wlqtQ784zK4L')
+        assert exn.saidb == b'EGQ_DqGlSBx2MKJfHr6liXAngFpQ0UCtV1cdVMUtJHdN'
+        assert atc == (b'-FABEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba0AAAAAAAAAAAAAAA'
+                       b'AAAAAAAAEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba-AABAAB3yX6b'
+                       b'EXb8N63PKaMaFqijZVT5TqVtoO8q1BFnoJW3rDkNuJ9lEMpEN-44HKGtvniWZ6-d'
+                       b'CVPS4fsEXKZAKGkB-LAa5AACAA-e-ixn-AABAABG58m7gibjdrQ8YU-8WQ8A70nc'
+                       b'tYekYr3xdfZ5WgDQOD0bb9pI7SuuaJvzfAQisLAYQnztA82pAo1Skhf1vQwD')
         data = exn.ked["a"]
-        assert data["aids"] == ghab1.smids
+        assert data["smids"] == ghab1.smids
         assert data["gid"] == ghab1.pre
-        assert data["data"] == [{"i": 1, "x": 0, "d": 2}]
+        assert "ixn" in exn.ked["e"]
+
+
+def test_multisig_registry_incept(mockHelpingNowUTC, mockCoringRandomNonce):
+    with openMultiSig(prefix="test") as ((hby1, ghab1), (_, _), (_, _)):
+        vcp = veventing.incept(ghab1.pre)
+        ixn = ghab1.mhab.interact(data=[dict(i=vcp.pre, s="0", d=vcp.said)])
+        exn, atc = grouping.multisigRegistryInceptExn(ghab=ghab1, vcp=vcp.raw, anc=ixn,
+                                                      usage="Issue vLEI Credentials")
+
+        assert exn.ked["r"] == '/multisig/vcp'
+        assert exn.saidb == b'ECKiNFo7fpG4vS5tUeja3EvOqT8ctq4AW8E3HKsP7dJo'
+        assert atc == (b'-FABEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba0AAAAAAAAAAAAAAA'
+                       b'AAAAAAAAEH__mobl7NDyyQCB1DoLK-OPSueraPtZAlWEjfOYkaba-AABAABh6d0m'
+                       b'lebT57L8o2si7DfEvPCoXJP0ekPiBqkzQns3-P7dz36MPXhjNFW6xRRdUstDLAZe'
+                       b'BEqBxBCltMpTZGsD-LAa5AACAA-e-anc-AABAAD2mK9ICW9x1-0NZGkEDOcAbZ58'
+                       b'VWK9LOTwyN2lSfHr2zY638P1SBStoh8mjgy7nOTGMyujOXMKvF_ZDeQ_ISYA')
+        data = exn.ked["a"]
+        assert data == {'gid': 'EERn_laF0qwP8zTBGL86LbF84J0Yh2IvQSRskH3BZZiy',
+                        'usage': 'Issue vLEI Credentials'}
+        assert "vcp" in exn.ked["e"]
+        assert "anc" in exn.ked["e"]
 
 
 def test_multisig_incept_handler(mockHelpingNowUTC):
     with habbing.openHab(name="test0", temp=True) as (hby, hab):
-
-        aids = [hab.pre, "EArzbTSWjccrTdNRsFUUfwaJ2dpYxu9_5jI2PJ-TRri0"]
-        serder = eventing.incept(keys=["DAEFuPeaDH2TySI-wX7CY_uW5FF41LRu3a59jxg1_pMs"],
-                                 ndigs=["DLONLed3zFEWa0p21fvi1Jf5-x-EoyEPqFvOki3YhP1k"])
-
-        notifier = notifying.Notifier(hby=hby)
-        handler = grouping.MultisigInceptHandler(hby=hby, notifier=notifier)
-
-        # Pass message missing keys:
-        handler.msgs.append(dict(name="value"))
-        handler.msgs.append(dict(pre=hab.kever.prefixer))
-        handler.msgs.append(dict(pre=hab.kever.prefixer, payload=dict(aids=aids)))
-        handler.msgs.append(dict(pre=hab.kever.prefixer, payload=dict(smids=aids, ked=serder.ked)))
-
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[handler])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        assert len(notifier.signaler.signals) == 1
-        doist.exit()
-
-    with habbing.openHab(name="test0", temp=True) as (hby, hab):
-
         aids = [hab.pre, "EfrzbTSWjccrTdNRsFUUfwaJ2dpYxu9_5jI2PJ-TRri0"]
-        exn, atc = grouping.multisigInceptExn(hab=hab, smids=aids, rmids=aids, ked=hab.kever.serder.ked)
+        exn, atc = grouping.multisigInceptExn(hab=hab, smids=aids, rmids=aids,
+                                              icp=hab.makeOwnEvent(sn=hab.kever.sn))
 
         notifier = notifying.Notifier(hby=hby)
-        exc = exchanging.Exchanger(db=hby.db, handlers=[])
-        grouping.loadHandlers(hby=hby, exc=exc, notifier=notifier)
+        mux = grouping.Multiplexor(hby=hby, notifier=notifier)
+        exc = exchanging.Exchanger(hby=hby, handlers=[])
+        grouping.loadHandlers(exc=exc, mux=mux)
 
         ims = bytearray(exn.raw)
         ims.extend(atc)
         parsing.Parser().parseOne(ims=ims, exc=exc)
+        assert len(notifier.signaler.signals) == 0
 
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[exc])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        doist.exit()
-
-        assert len(notifier.signaler.signals) == 1
+        esaid = exn.ked['e']['d']
+        saiders = hby.db.meids.get(keys=(esaid, ))
+        assert len(saiders) == 1
+        assert saiders[0].qb64 == exn.said
+        prefixers = hby.db.maids.get(keys=(esaid,))
+        assert len(prefixers) == 1
+        assert prefixers[0].qb64 == exn.pre
 
 
 def test_multisig_rotate_handler(mockHelpingNowUTC):
-    with openMultiSig(prefix="test") as ((hby, ghab), (_, _), (_, _)):
-
-        notifier = notifying.Notifier(hby=hby)
-        handler = grouping.MultisigRotateHandler(hby=hby, notifier=notifier)
-
-        # Pass message missing keys:
-        handler.msgs.append(dict(name="value"))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer, payload=dict(aids=ghab.smids)))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer, payload=dict(aids=ghab.smids, gid=ghab.pre)))
-        handler.msgs.append(dict(pre=ghab.mhab.kever.prefixer, payload=dict(smids=ghab.smids,
-                                                                            rmids=ghab.rmids, ked=dict())))
-
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[handler])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        doist.exit()
-
-        assert len(notifier.signaler.signals) == 1
-
-    with openMultiSig(prefix="test") as ((hby1, ghab1), (_, _), (_, _)):
-
-        icp = ghab1.makeOwnInception()
-        serder = coring.Serder(raw=icp)
-        exn, atc = grouping.multisigRotateExn(ghab=ghab1, smids=ghab1.smids, rmids=ghab1.rmids,
-                                              ked=serder.ked)
+    with openMultiSig(prefix="test") as ((hby1, ghab1), (hby2, ghab2), (_, _)):
+        msg = ghab1.mhab.rotate()
         notifier = notifying.Notifier(hby=hby1)
-        exc = exchanging.Exchanger(db=hby1.db, handlers=[])
-        grouping.loadHandlers(hby=hby1, exc=exc, notifier=notifier)
+        mux = grouping.Multiplexor(hby=hby1, notifier=notifier)
+        exc = exchanging.Exchanger(hby=hby1, handlers=[])
+        grouping.loadHandlers(exc=exc, mux=mux)
 
+        # create and send message from ghab2
+        exn, atc = grouping.multisigRotateExn(ghab=ghab2, smids=ghab1.smids, rmids=ghab1.rmids,
+                                              rot=msg)
         ims = bytearray(exn.raw)
         ims.extend(atc)
         parsing.Parser().parseOne(ims=ims, exc=exc)
 
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[exc])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        doist.exit()
-
+        # One notification
         assert len(notifier.signaler.signals) == 1
+
+        esaid = exn.ked['e']['d']
+        saiders = hby1.db.meids.get(keys=(esaid, ))
+        assert len(saiders) == 1
+        assert saiders[0].qb64 == exn.said
+        prefixers = hby1.db.maids.get(keys=(esaid,))
+        assert len(prefixers) == 1
+        assert prefixers[0].qb64 == ghab2.mhab.pre
+
+        # Send the same message from ghab1
+        exn, atc = grouping.multisigRotateExn(ghab=ghab1, smids=ghab1.smids, rmids=ghab1.rmids,
+                                              rot=msg)
+        ims = bytearray(exn.raw)
+        ims.extend(atc)
+        parsing.Parser().parseOne(ims=ims, exc=exc)
+
+        # There should still only be one notification because we don't notify for our own event
+        assert len(notifier.signaler.signals) == 1
+
+        saiders = hby1.db.meids.get(keys=(esaid, ))
+        assert len(saiders) == 2
+        assert saiders[1].qb64 == exn.said
+        prefixers = hby1.db.maids.get(keys=(esaid,))
+        assert len(prefixers) == 2
+        assert prefixers[1].qb64 == ghab1.mhab.pre
 
 
 def test_multisig_interact_handler(mockHelpingNowUTC):
-    with openMultiSig(prefix="test") as ((hby, ghab), (_, _), (_, _)):
-
-        notifier = notifying.Notifier(hby=hby)
-        handler = grouping.MultisigInteractHandler(hby=hby, notifier=notifier)
-
-        # Pass message missing keys:
-        handler.msgs.append(dict(name="value"))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer, payload=dict(aids=ghab.smids)))
-        handler.msgs.append(dict(pre=ghab.kever.prefixer, payload=dict(aids=ghab.smids, gid=ghab.pre)))
-        handler.msgs.append(dict(pre=ghab.mhab.kever.prefixer, payload=dict(aids=ghab.smids, gid=ghab.pre)))
-
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[handler])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        doist.exit()
-
-        assert len(notifier.signaler.signals) == 1
-
-    with openMultiSig(prefix="test") as ((hby1, ghab1), (_, _), (_, _)):
-
-        exn, atc = grouping.multisigInteractExn(ghab=ghab1, aids=ghab1.smids,
-                                                data=[{"i": 1, "x": 0, "d": 2}])
+    with openMultiSig(prefix="test") as ((hby1, ghab1), (_, ghab2), (_, _)):
+        ixn = ghab1.mhab.interact()
+        exn, atc = grouping.multisigInteractExn(ghab=ghab2, aids=ghab1.smids,
+                                                ixn=ixn)
 
         notifier = notifying.Notifier(hby=hby1)
-        exc = exchanging.Exchanger(db=hby1.db, handlers=[])
-        grouping.loadHandlers(hby=hby1, exc=exc, notifier=notifier)
+        mux = grouping.Multiplexor(hby=hby1, notifier=notifier)
+        exc = exchanging.Exchanger(hby=hby1, handlers=[])
+        grouping.loadHandlers(exc=exc, mux=mux)
 
         ims = bytearray(exn.raw)
         ims.extend(atc)
         parsing.Parser().parseOne(ims=ims, exc=exc)
 
-        limit = 1.0
-        tock = 0.03125
-        doist = doing.Doist(tock=tock, limit=limit, doers=[exc])
-        doist.enter()
-
-        tymer = tyming.Tymer(tymth=doist.tymen(), duration=doist.limit)
-
-        while not tymer.expired:
-            doist.recur()
-            time.sleep(doist.tock)
-
-        assert doist.limit == limit
-        doist.exit()
-
+        esaid = exn.ked['e']['d']
         assert len(notifier.signaler.signals) == 1
+        saiders = hby1.db.meids.get(keys=(esaid, ))
+        assert len(saiders) == 1
+        assert saiders[0].qb64 == exn.said
+        prefixers = hby1.db.maids.get(keys=(esaid,))
+        assert len(prefixers) == 1
+        assert prefixers[0].qb64 == ghab2.mhab.pre

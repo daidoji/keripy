@@ -740,6 +740,11 @@ class Baser(dbing.LMDBer):
             key is group identifier prefix
             value is serialized GroupIdentifier dataclass
 
+        .mpids is named subDB instance of CesrIoSetSuber mapping payload SAID (of 'e' block)
+            to the SAID of the `exn` messages is was contained in.  This aggregates
+            identical message bodies across participants in group multisig body trying
+            to reach concensus on events or credentials.
+
     Properties:
         kevers (dbdict): read through cache of kevers of states for KELs in db
 
@@ -911,6 +916,9 @@ class Baser(dbing.LMDBer):
         # exchange messages
         self.exns = subing.SerderSuber(db=self, subkey="exns.")
 
+        # Forward pointer to a provided reply message
+        self.erpy = subing.CesrSuber(db=self, subkey="erpy.", klas=coring.Saider)
+
         # exchange messages
         self.sxns = subing.SerderSuber(db=self, subkey="sxns.")
 
@@ -918,10 +926,8 @@ class Baser(dbing.LMDBer):
         self.esigs = subing.CesrIoSetSuber(db=self, subkey='esigs.', klas=coring.Siger)
 
         # exchange message signatures
-        self.ecigs = subing.CesrIoSetSuber(db=self, subkey='ecigs.', klas=coring.Cigar)
-
-        # exchange source prefix
-        self.esrc = subing.CesrSuber(db=self, subkey='esrc.', klas=coring.Prefixer)
+        self.ecigs = subing.CatCesrIoSetSuber(db=self, subkey='ecigs.',
+                                              klas=(coring.Verfer, coring.Cigar))
 
         # exchange pathed attachments
         self.epath = subing.IoSetSuber(db=self, subkey=".epath")
@@ -1029,10 +1035,19 @@ class Baser(dbing.LMDBer):
         self.cdel = subing.CesrSuber(db=self, subkey='cdel.',
                                      klas=coring.Saider)
 
+        # public keys mapped to the AID and event seq no they appeared in
         self.pubs = subing.CatCesrIoSetSuber(db=self, subkey="pubs.",
                                              klas=(coring.Prefixer, coring.Seqner))
+
+        # next key digests mapped to the AID and event seq no they appeared in
         self.digs = subing.CatCesrIoSetSuber(db=self, subkey="digs.",
                                              klas=(coring.Prefixer, coring.Seqner))
+
+        # multisig sig embed payload SAID mapped to containing exn messages across group multisig participants
+        self.meids = subing.CesrIoSetSuber(db=self, subkey="meids.", klas=coring.Saider)
+
+        # multisig sig embed payload SAID mapped to group multisig participants AIDs
+        self.maids = subing.CesrIoSetSuber(db=self, subkey="maids.", klas=coring.Prefixer)
 
         self.reload()
 
@@ -1235,7 +1250,7 @@ class Baser(dbing.LMDBer):
             for wig in wigs:
                 atc.extend(wig)
 
-        # add authorizer (delegator/issure) source seal event couple to attachments
+        # add authorizer (delegator/issuer) source seal event couple to attachments
         couple = self.getAes(dgkey)
         if couple is not None:
             atc.extend(coring.Counter(code=coring.CtrDex.SealSourceCouples,

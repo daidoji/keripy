@@ -6,6 +6,7 @@ message stream parsing support
 """
 
 import logging
+import traceback
 from collections import namedtuple
 from dataclasses import dataclass, astuple
 
@@ -287,9 +288,9 @@ class Parser:
                                                 cold=cold,
                                                 abort=pipelined)
             ictr = yield from self._extractor(ims=ims,
-                                                    klas=Counter,
-                                                    cold=cold,
-                                                    abort=pipelined)
+                                              klas=Counter,
+                                              cold=cold,
+                                              abort=pipelined)
             if ictr.code != CtrDex.ControllerIdxSigs:
                 raise kering.UnexpectedCountCodeError("Wrong "
                                                       "count code={}.Expected code={}."
@@ -303,7 +304,6 @@ class Parser:
                 isigers.append(isiger)
 
             yield prefixer, seqner, saider, isigers
-
 
     def _nonTransReceiptCouples(self, ctr, ims, cold=Colds.txt, pipelined=False):
         """
@@ -380,7 +380,7 @@ class Parser:
             except StopIteration:
                 break
 
-    def parseOne(self, ims=None, framed=True, pipeline=False, kvy=None, tvy=None, exc=None, rvy=None):
+    def parseOne(self, ims=None, framed=True, pipeline=False, kvy=None, tvy=None, exc=None, rvy=None, vry=None):
         """
         Processes one messages from incoming message stream, ims,
         when provided. Otherwise process message from .ims
@@ -413,7 +413,8 @@ class Parser:
                                      kvy=kvy,
                                      tvy=tvy,
                                      exc=exc,
-                                     rvy=rvy)
+                                     rvy=rvy,
+                                     vry=vry)
         while True:
             try:
                 next(parsator)
@@ -736,6 +737,8 @@ class Parser:
         frcs = []  # each converted couple is (seqner, dater)
         # List of tuples from extracted source seal couples (delegator or issuer)
         sscs = []  # each converted couple is (seqner, diger) for delegating or issuing event
+        # List of tuples from extracted source seal triples (issuer or issuance tel event)
+        ssts = []  # each converted couple is (seqner, diger) for delegating or issuing event
         # List of tuples from extracted SAD path sig groups from transferable identifiers
         sadtsgs = []  # each converted group is tuple of (path, i, s, d) quad plus list of sigs
         # List of tuples from extracted SAD path sig groups from non-trans identifiers
@@ -898,6 +901,27 @@ class Parser:
                                                                 abort=pipelined)
                             sscs.append((seqner, saider))
 
+                    elif ctr.code == CtrDex.SealSourceTriples:
+                        # extract attached anchoring source event information
+                        # pre+snu+dig
+                        # pre is prefix of event
+                        # snu is sequence number  of event
+                        # dig is digest of event
+                        for i in range(ctr.count):  # extract each attached quadruple
+                            prefixer = yield from self._extractor(ims,
+                                                                  klas=Prefixer,
+                                                                  cold=cold,
+                                                                  abort=pipelined)
+                            seqner = yield from self._extractor(ims,
+                                                                klas=Seqner,
+                                                                cold=cold,
+                                                                abort=pipelined)
+                            saider = yield from self._extractor(ims,
+                                                                klas=Saider,
+                                                                cold=cold,
+                                                                abort=pipelined)
+                            ssts.append((prefixer, seqner, saider))
+
                     elif ctr.code == CtrDex.SadPathSigGroup:
                         path = yield from self._extractor(ims,
                                                           klas=Pather,
@@ -1004,7 +1028,7 @@ class Parser:
             elif ilk in [Ilks.rct]:  # event receipt msg (nontransferable)
                 if not (cigars or wigers or tsgs):
                     raise kering.ValidationError("Missing attached signatures on receipt"
-                                                "msg = {}.".format(serder.ked))
+                                                 "msg = {}.".format(serder.ked))
 
                 try:
                     if cigars:
@@ -1033,6 +1057,7 @@ class Parser:
                         rvy.processReply(serder, tsgs=tsgs)  # trans
 
                 except AttributeError as e:
+                    print(e)
                     raise kering.ValidationError("No kevery to process so dropped msg"
                                                  "= {}.".format(serder.pretty()))
 
@@ -1071,26 +1096,22 @@ class Parser:
 
             elif ilk in (Ilks.exn,):
                 args = dict(serder=serder)
-                if ssgs:
-                    pre, sigers = ssgs[-1] if ssgs else (None, None)  # use last one if more than one
-                    args["source"] = pre
-                    args["sigers"] = sigers
-
-                elif cigars:
-                    args["cigars"] = cigars
-
-                else:
-                    raise kering.ValidationError("Missing attached exchanger signature(s) "
-                                                 "to peer exchange msg = {}.".format(serder.pretty()))
                 if pathed:
                     args["pathed"] = pathed
 
                 try:
-                    exc.processEvent(**args)
+                    if cigars:
+                        exc.processEvent(cigars=cigars, **args)
+
+                    if tsgs:
+                        exc.processEvent(tsgs=tsgs, **args)
 
                 except AttributeError as e:
+                    print(e)
                     raise kering.ValidationError("No Exchange to process so dropped msg"
                                                  "= {}.".format(serder.pretty()))
+                except Exception as e:
+                    print(e)
 
             elif ilk in (Ilks.vcp, Ilks.vrt, Ilks.iss, Ilks.rev, Ilks.bis, Ilks.brv):
                 # TEL msg
@@ -1099,7 +1120,7 @@ class Parser:
                 try:
                     tvy.processEvent(serder=serder, seqner=seqner, saider=saider, wigers=wigers)
 
-                except AttributeError:
+                except AttributeError as e:
                     raise kering.ValidationError("No tevery to process so dropped msg"
                                                  "= {}.".format(serder.pretty()))
             else:
@@ -1108,20 +1129,12 @@ class Parser:
 
         elif sadder.proto == Protos.acdc:
             creder = Creder(sad=sadder)
-            args = dict(creder=creder)
-
-            if sadtsgs:
-                args["sadsigers"] = sadtsgs
-
-            if sadcigs:
-                args["sadcigars"] = sadcigs
-
             try:
-                vry.processCredential(**args)
+                prefixer, seqner, saider = ssts[-1] if ssts else (None, None, None)  # use last one if more than one
+                vry.processCredential(creder=creder, prefixer=prefixer, seqner=seqner, saider=saider)
             except AttributeError as e:
                 raise kering.ValidationError("No verifier to process so dropped credential"
                                              "= {}.".format(creder.pretty()))
-
         else:
             raise kering.ValidationError("Unexpected protocol type = {} for event message ="
                                          " {}.".format(sadder.proto, sadder.pretty()))

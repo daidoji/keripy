@@ -13,10 +13,12 @@ from hio.base import doing
 from keri import kering
 from keri import help
 from keri.app import habbing, keeping, configing
+from keri.core.coring import MtrDex
 from keri.db import basing
 from keri.core import coring, eventing, parsing
 from keri.help import helping
 from keri.peer import exchanging
+from keri.vdr.eventing import incept
 
 
 def test_habery():
@@ -24,6 +26,7 @@ def test_habery():
     Test Habery class
     """
     # test default
+    default_salt = coring.Salter(raw=b'0123456789abcdef').qb64
     hby = habbing.Habery(temp=True)
     assert hby.name == "test"
     assert hby.base == ""
@@ -52,7 +55,7 @@ def test_habery():
 
     assert hby.mgr.seed == ""
     assert hby.mgr.aeid == ""
-    assert hby.mgr.salt == habbing.SALT
+    assert hby.mgr.salt == default_salt
     assert hby.mgr.pidx == 1
     assert hby.mgr.algo == keeping.Algos.salty
     assert hby.mgr.tier == coring.Tiers.low
@@ -85,7 +88,7 @@ def test_habery():
 
     assert hby.mgr.seed == seed4bran
     assert hby.mgr.aeid == aeid4seed
-    assert hby.mgr.salt == habbing.SALT
+    assert hby.mgr.salt == default_salt
     assert hby.mgr.pidx == 1
     assert hby.mgr.algo == keeping.Algos.salty
     assert hby.mgr.tier == coring.Tiers.low
@@ -103,7 +106,6 @@ def test_habery():
     assert not os.path.exists(hby.cf.path)
     assert not os.path.exists(hby.db.path)
     assert not os.path.exists(hby.ks.path)
-
 
     # test pre-create of injected resources
     base = "keep"
@@ -153,7 +155,7 @@ def test_habery():
     assert hby.mgr is not None
     assert hby.mgr.seed == seed4bran
     assert hby.mgr.aeid == aeid4seed
-    assert hby.mgr.salt == habbing.SALT
+    assert hby.mgr.salt == default_salt
     assert hby.mgr.pidx == 1
     assert hby.mgr.algo == keeping.Algos.salty
     assert hby.mgr.tier == coring.Tiers.low
@@ -174,7 +176,6 @@ def test_habery():
     assert not os.path.exists(db.path)
     assert not os.path.exists(ks.path)
 
-
     # test pre-create using habery itself
     base = "keep"
     name = "main"
@@ -191,7 +192,6 @@ def test_habery():
         iurls = [f"ftp://localhost:5621/?role={kering.Roles.peer}&name=Bob"]
         conf = dict(dt=help.nowIso8601(), curls=curls, iurls=iurls)
         hby.cf.put(conf)
-
 
     assert hby.name == "main"
     assert hby.base == "keep"
@@ -216,7 +216,7 @@ def test_habery():
     assert hby.mgr is not None
     assert hby.mgr.seed == seed4bran
     assert hby.mgr.aeid == aeid4seed
-    assert hby.mgr.salt == habbing.SALT
+    assert hby.mgr.salt == default_salt
     assert hby.mgr.pidx == 1
     assert hby.mgr.algo == keeping.Algos.salty
     assert hby.mgr.tier == coring.Tiers.low
@@ -264,7 +264,7 @@ def test_habery():
 
         assert hby.mgr.seed == ""
         assert hby.mgr.aeid == ""
-        assert hby.mgr.salt == habbing.SALT
+        assert hby.mgr.salt == default_salt
         assert hby.mgr.pidx == 1
         assert hby.mgr.algo == keeping.Algos.salty
         assert hby.mgr.tier == coring.Tiers.low
@@ -282,7 +282,6 @@ def test_habery():
     assert not os.path.exists(hby.cf.path)
     assert not os.path.exists(hby.db.path)
     assert not os.path.exists(hby.ks.path)
-
 
     bran = "MyPasscodeARealSecret"
     with habbing.openHby(bran=bran) as hby:
@@ -314,7 +313,7 @@ def test_habery():
         # test bran to seed
         assert hby.mgr.seed == seed4bran
         assert hby.mgr.aeid == aeid4seed
-        assert hby.mgr.salt == habbing.SALT
+        assert hby.mgr.salt == default_salt
         assert hby.mgr.pidx == 1
         assert hby.mgr.algo == keeping.Algos.salty
         assert hby.mgr.tier == coring.Tiers.low
@@ -332,7 +331,6 @@ def test_habery():
     assert not os.path.exists(hby.cf.path)
     assert not os.path.exists(hby.db.path)
     assert not os.path.exists(hby.ks.path)
-
 
     """End Test"""
 
@@ -370,8 +368,6 @@ def test_make_load_hab_with_habery():
         hab.rvy = hby.rvy  # injected
         hab.kvy = hby.kvy  # injected
         hab.psr = hby.psr  # injected
-
-
 
     assert not hby.cf.opened
     assert not hby.db.opened
@@ -426,7 +422,6 @@ def test_make_load_hab_with_habery():
 
         assert len(hby.habs) == 2
 
-
     assert not hby.cf.opened
     assert not hby.db.opened
     assert not hby.ks.opened
@@ -472,7 +467,6 @@ def test_make_load_hab_with_habery():
     """End Test"""
 
 
-
 def test_hab_rotate_with_witness():
     """
     Reload from disk and rotate hab with witness
@@ -493,7 +487,6 @@ def test_hab_rotate_with_witness():
         opre = hab.pre
         opub = hab.kever.verfers[0].qb64
         odig = hab.kever.serder.said
-
 
     with habbing.openHby(name=name, base="test", temp=False) as hby:
         hab = hby.habByName(name)
@@ -534,7 +527,6 @@ def test_habery_reinitialization():
         opre = hab.pre
         opub = hab.kever.verfers[0].qb64
         odig = hab.kever.serder.said
-
 
     with habbing.openHby(name=name, base="test", temp=False) as hby:
 
@@ -615,20 +607,18 @@ def test_habery_reconfigure(mockHelpingNowUTC):
     # salt = salter.qb64
     # assert salt == '0ABaqPLVOa6fpVnAKcmwhIdQ'
 
-    salt = habbing.SALT
+    salt = coring.Salter(raw=b'0123456789abcdef').qb64
 
     cname = "tam"  # controller name
     cbase = "main"  # controller base shared
-    pname = "nel"   # peer name
+    pname = "nel"  # peer name
     pbase = "head"  # peer base shared
-
 
     with (habbing.openHby(name='wes', base=cbase, salt=salt) as wesHby,
           habbing.openHby(name='wok', base=cbase, salt=salt) as wokHby,
           habbing.openHby(name=cname, base=cbase, salt=salt) as tamHby,
           habbing.openHby(name='wat', base=cbase, salt=salt) as watHby,
           habbing.openHby(name=pname, base=pbase, salt=salt) as nelHby):
-
         # witnesses first so can setup inception event for tam
         wsith = '1'
 
@@ -676,7 +666,7 @@ def test_habery_reconfigure(mockHelpingNowUTC):
         assert locer.url == 'tcp://localhost:5620/'
 
         # setup Wat's habitat nontrans
-        watHab = watHby.makeHab(name="wat", isith=wsith, icount=1, transferable=False,)
+        watHab = watHby.makeHab(name="wat", isith=wsith, icount=1, transferable=False, )
         assert not watHab.kever.prefixer.transferable
 
         # setup Nel's config
@@ -709,7 +699,6 @@ def test_habery_reconfigure(mockHelpingNowUTC):
         locer = nelHab.db.locs.get(keys=(nelHab.pre, kering.Schemes.tcp))
         assert locer.url == 'tcp://localhost:5621/'
 
-
     assert not os.path.exists(nelHby.cf.path)
     assert not os.path.exists(nelHby.db.path)
     assert not os.path.exists(nelHby.ks.path)
@@ -726,39 +715,6 @@ def test_habery_reconfigure(mockHelpingNowUTC):
     assert not os.path.exists(tamHby.db.path)
     assert not os.path.exists(tamHby.ks.path)
     """Done Test"""
-
-
-def test_hab_exchange(mockHelpingNowUTC):
-
-    with habbing.openHby() as hby:
-        hab = hby.makeHab(name="test")
-        assert hab.pre == "EIaGMMWJFPmtXznY1IIiKDIrg-vIyge6mBl2QV8dDjI3"
-
-        data = dict(a=1, b=2, c=3)
-        exn = exchanging.exchange(route='/test/fwd', modifiers=dict(),
-                                  payload=data)
-
-        msg = hab.exchange(serder=exn, save=True)
-        assert msg == (b'{"v":"KERI10JSON0000ad_","t":"exn","d":"EF4u9o0M_Qs0Vkqb0vwDnrqP'
-                       b'aQyCiI1Y_9ezNH2WtNKH","dt":"2021-01-01T00:00:00.000000+00:00","r'
-                       b'":"/test/fwd","q":{},"a":{"a":1,"b":2,"c":3}}-HABEIaGMMWJFPmtXzn'
-                       b'Y1IIiKDIrg-vIyge6mBl2QV8dDjI3-AABAABGv3uei98BwqLUt96_366zqonSFpf'
-                       b'TKE4fVHBVoa6t5nVRHPRc-R7m8Ck5q7ie5SzhciTq5oT9CujANkV5UG0A')
-
-        serder = hab.db.exns.get(keys=(exn.said,))
-        assert serder.ked == exn.ked
-
-        hab = hby.makeHab(name="test1", transferable=False)
-        assert hab.pre == "BJZ_LF61JTCCSCIw2Q4ozE2MsbRC4m-N6-tFVlCeiZPG"
-        msg = hab.exchange(serder=exn, save=True)
-        assert msg == (b'{"v":"KERI10JSON0000ad_","t":"exn","d":"EF4u9o0M_Qs0Vkqb0vwDnrqP'
-                       b'aQyCiI1Y_9ezNH2WtNKH","dt":"2021-01-01T00:00:00.000000+00:00","r'
-                       b'":"/test/fwd","q":{},"a":{"a":1,"b":2,"c":3}}-CABBJZ_LF61JTCCSCI'
-                       b'w2Q4ozE2MsbRC4m-N6-tFVlCeiZPG0BCb_ZFWN6truKuBCekbTfxeVFTQJGjjuPe'
-                       b'uEhIDyxUvH72A_vp3lllrVnW9MPJPZHYltGfqvxXnO5jOyk2BWZgN')
-
-        serder = hab.db.exns.get(keys=(exn.said,))
-        assert serder.ked == exn.ked
 
 
 def test_namespaced_habs():
@@ -816,9 +772,7 @@ def test_namespaced_habs():
         nshab = hby.makeHab(name="test", ns="controller")
         ctpre = nshab.pre
 
-
     with habbing.openHby(name=name, base="test", temp=False) as hby:
-
         for pre in [opre, o2pre, atpre, at2pre, ctpre]:
             assert pre in hby.db.kevers  # read through cache
             assert pre in hby.db.prefixes

@@ -6,17 +6,16 @@ keri.app.grouping module
 module for enveloping and forwarding KERI message
 """
 
-from hio import help
 from hio.base import doing
 from hio.help import decking
 
-from keri import kering
-from keri.app import delegating, agenting
-from keri.core import coring
-from keri.db import dbing
-from keri.db.dbing import snKey
-from keri.peer import exchanging
-from keri.vc import proving
+from .. import kering
+from .. import help
+from ..app import delegating, agenting
+from ..core import coring, routing, eventing, parsing
+from ..db import dbing
+from ..db.dbing import snKey
+from ..peer import exchanging
 
 logger = help.ogler.getLogger()
 
@@ -44,8 +43,8 @@ class Counselor(doing.DoDoer):
 
             ghab (Hab): group Habitat
             prefixer (Prefixer): prefixer of group identifier
-            seqner (Seqner): seqner of inception event of group identifier
-            saider (Saider): saider of inception event of group identifier
+            seqner (Seqner): seqner of event of group identifier
+            saider (Saider): saider of event of group identifier
 
         """
         evt = ghab.makeOwnEvent(sn=seqner.sn, allowPartiallySigned=True)
@@ -105,7 +104,6 @@ class Counselor(doing.DoDoer):
         self.processPartialSignedEscrow()
         self.processDelegateEscrow()
         self.processPartialWitnessEscrow()
-
 
     def processPartialSignedEscrow(self):
         """
@@ -221,408 +219,288 @@ class Counselor(doing.DoDoer):
                 self.witDoer.gets.append(dict(pre=pre, sn=seqner.sn))
 
 
-def loadHandlers(hby, exc, notifier):
+class MultisigNotificationHandler:
+    """
+    Handler for multisig coordination EXN messages
+
+    """
+
+    def __init__(self, resource, mux):
+        """ Create an exn handler for multisig messages
+
+        Parameters:
+            resource:
+            mux:
+        """
+        self.resource = resource
+        self.mux = mux
+
+    def handle(self, serder, attachments=None):
+        """  Do route specific processsing of multisig exn messages
+
+        Parameters:
+            serder (Serder): Serder of the exn multisig message
+            attachments (list): list of tuples of pather, CESR SAD path attachments to the exn event
+
+        """
+        self.mux.add(serder=serder)
+
+
+def loadHandlers(exc, mux):
     """ Load handlers for the peer-to-peer distributed group multisig protocol
 
     Parameters:
-        hby (Habery): Database and keystore for environment
         exc (Exchanger): Peer-to-peer message router
-        notifier (Notifier): Database for storing mailbox messages
+        mux (Multiplexor): Multisig communication coordinator
 
     """
-    incept = MultisigInceptHandler(hby=hby, notifier=notifier)
-    exc.addHandler(incept)
-    rotate = MultisigRotateHandler(hby=hby, notifier=notifier)
-    exc.addHandler(rotate)
-    interact = MultisigInteractHandler(hby=hby, notifier=notifier)
-    exc.addHandler(interact)
-    issue = MultisigIssueHandler(notifier=notifier)
-    exc.addHandler(issue)
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/icp", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/rot", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/ixn", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/vcp", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/iss", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/rev", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/exn", mux=mux))
+    exc.addHandler(MultisigNotificationHandler(resource="/multisig/rpy", mux=mux))
 
 
-class MultisigInceptHandler(doing.DoDoer):
+def multisigInceptExn(hab, smids, rmids, icp, delegator=None):
     """
-    Handler for multisig group inception notification EXN messages
+
+    Args:
+        hab (Hab): habitat of local multisig member AID
+        smids (list): list of qb64 AIDs of members with signing authority
+        rmids (list): list of qb64 AIDs of members with rotation authority
+        icp (bytes): serialized inception event with CESR streamed attachments
+        delegator (str): qb64 AID of Delegator is group multisig is a delegated AID
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
 
     """
-    resource = "/multisig/icp"
-    persist = True
-
-    def __init__(self, hby, notifier, **kwa):
-        """
-
-        Parameters:
-            mbx (Mailboxer) of format str names accepted for offers
-            cues (decking.Deck) of outbound cue messages from handler
-
-        """
-        self.hby = hby
-        self.notifier = notifier
-        self.msgs = decking.Deck()
-        self.cues = decking.Deck()
-
-        super(MultisigInceptHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """
-
-        Handle incoming messages by parsing and verifying the credential and storing it in the wallet
-
-        Parameters:
-            payload is dict representing the body of a multisig/incept message
-            pre is qb64 identifier prefix of sender
-            sigers is list of Sigers representing the sigs on the /credential/issue message
-            verfers is list of Verfers of the keys used to sign the message
-
-        """
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
-
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-
-                if "pre" not in msg:
-                    logger.error(f"invalid incept message, missing pre.  evt: {msg}")
-                    continue
-
-                prefixer = msg["pre"]
-                if "payload" not in msg:
-                    logger.error(f"invalid incept message, missing payload.  evt: {msg}")
-                    continue
-
-                pay = msg["payload"]
-                if "smids" not in pay or "ked" not in pay:
-                    logger.error(f"invalid incept payload, smids and ked are required.  payload: {pay}")
-                    continue
-
-                src = prefixer.qb64
-                smids = pay["smids"]
-
-                hab = None
-                for aid in smids:
-                    if aid in self.hby.habs:
-                        hab = self.hby.habs[aid]
-
-                if hab is None:
-                    logger.error(f"invalid incept message, no local event in smids: {pay}")
-                    continue
-
-                if src not in pay["smids"] or src not in hab.kevers:
-                    logger.error(f"invalid incept message, source not knows or not part of group.  evt: {msg}")
-                    continue
-
-                data = dict(
-                    r='/multisig/icp/init',
-                    src=src,
-                    smids=smids,
-                    ked=pay["ked"]
-                )
-                self.notifier.add(attrs=data)
-
-                yield
-            yield
-
-
-def multisigInceptExn(hab, smids, rmids, ked, delegator=None):
+    rmids = rmids if rmids is not None else smids
+    serder = coring.Serder(raw=icp)
     data = dict(
+        gid=serder.pre,
         smids=smids,
         rmids=rmids,
-        ked=ked
+    )
+
+    embeds = dict(
+        icp=icp,
     )
 
     if delegator is not None:
         data |= dict(delegator=delegator)
 
     # Create `exn` peer to peer message to notify other participants UI
-    exn = exchanging.exchange(route=MultisigInceptHandler.resource, modifiers=dict(),
-                              payload=data)
-    ims = hab.endorse(serder=exn, last=True, pipelined=False)
+    exn, end = exchanging.exchange(route="/multisig/icp", modifiers=dict(),
+                                   payload=data, embeds=embeds, sender=hab.pre)
+    ims = hab.endorse(serder=exn, last=False, pipelined=False)
     del ims[:exn.size]
+    ims.extend(end)
 
     return exn, ims
 
 
-class MultisigRotateHandler(doing.DoDoer):
+def multisigRotateExn(ghab, smids, rmids, rot):
     """
-    Handler for multisig group inception notification EXN messages
+
+    Args:
+        ghab (GroupHab): habitat of group multisig AID
+        smids (list): list of qb64 AIDs of members with signing authority
+        rmids (list): list of qb64 AIDs of members with rotation authority
+        rot (bytes): serialized rotation event with CESR streamed attachments
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
 
     """
-    resource = "/multisig/rot"
+    embeds = dict(
+        rot=rot,
+    )
 
-    def __init__(self, hby, notifier, **kwa):
-        """
-
-        Parameters:
-            mbx (Mailboxer) of format str names accepted for offers
-            controller (str) qb64 identity prefix of controller
-            cues (decking.Deck) of outbound cue messages from handler
-
-        """
-        self.hby = hby
-        self.notifier = notifier
-        self.msgs = decking.Deck()
-        self.cues = decking.Deck()
-
-        super(MultisigRotateHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """ Process incoming notifications for a group rotation
-
-        Handle incoming messages by parsing and verifiying the credential and storing it in the wallet
-
-        Parameters:
-            payload is dict representing the body of a multisig/incept message
-            pre is qb64 identifier prefix of sender
-            sigers is list of Sigers representing the sigs on the /credential/issue message
-            verfers is list of Verfers of the keys used to sign the message
-
-        ToDo: NRR
-        fix to use both ghab.smids and ghab.rmids
-
-        """
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
-
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-
-                if "pre" not in msg:
-                    logger.error(f"invalid rotation message, missing pre.  evt: {msg}")
-                    continue
-
-                prefixer = msg["pre"]
-                if "payload" not in msg:
-                    logger.error(f"invalid rotation message, missing payload.  evt: {msg}")
-                    continue
-
-                pay = msg["payload"]
-                if "smids" not in pay or "ked" not in pay or "rmids" not in pay:
-                    logger.error(f"invalid rotation payload, smids, rmids and ked are required.  payload: {pay}")
-                    continue
-
-                src = prefixer.qb64
-                smids = pay["smids"]
-                rmids = pay["rmids"]
-                ked = pay["ked"]
-
-                if src not in self.hby.kevers:
-                    logger.error(f"invalid incept message, source not known.  Evt={msg}")
-                    continue
-
-                data = dict(
-                    r='/multisig/rot',
-                    src=src,
-                    smids=smids,
-                    rmids=rmids,
-                    ked=ked
-                )
-
-                self.notifier.add(attrs=data)
-
-                yield
-
-            yield
-
-
-def multisigRotateExn(ghab, smids, rmids, ked):
-    exn = exchanging.exchange(route=MultisigRotateHandler.resource, modifiers=dict(),
-                              payload=dict(gid=ghab.pre,
-                                           smids=smids,
-                                           rmids=rmids,
-                                           ked=ked)
-                              )
-    ims = ghab.mhab.endorse(serder=exn, last=True, pipelined=False)
+    exn, end = exchanging.exchange(route="/multisig/rot", modifiers=dict(),
+                                   payload=dict(gid=ghab.pre,
+                                                smids=smids,
+                                                rmids=rmids), sender=ghab.mhab.pre,
+                                   embeds=embeds)
+    ims = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
     atc = bytearray(ims[exn.size:])
+    atc.extend(end)
 
     return exn, atc
 
 
-class MultisigInteractHandler(doing.DoDoer):
-    """
-    Handler for multisig group inception notification EXN messages
-
-    """
-    resource = "/multisig/ixn"
-
-    def __init__(self, hby, notifier, **kwa):
-        """
-
-        Parameters:
-            mbx (Mailboxer) of format str names accepted for offers
-            cues (decking.Deck) of outbound cue messages from handler
-
-        """
-        self.hby = hby
-        self.notifier = notifier
-        self.msgs = decking.Deck()
-        self.cues = decking.Deck()
-
-        super(MultisigInteractHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """ Process incoming notifications for a group interaction events
-
-        Handle incoming messages by storing a message in the mailbox of the controller
-
-        Parameters:
-            payload is dict representing the body of a multisig/ixn message
-            pre is qb64 identifier prefix of sender
-
-        ToDo: NRR
-        fix to use both ghab.smids and ghab.rmids
-
-        """
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
-
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-
-                if "pre" not in msg:
-                    logger.error(f"invalid rotation message, missing pre.  evt: {msg}")
-                    continue
-
-                prefixer = msg["pre"]
-                if "payload" not in msg:
-                    logger.error(f"invalid rotation message, missing payload.  evt: {msg}")
-                    continue
-
-                pay = msg["payload"]
-                if "aids" not in pay or "gid" not in pay:
-                    logger.error(f"invalid rotation payload, aids and gid are required.  payload: {pay}")
-                    continue
-
-                src = prefixer.qb64
-                aids = pay["aids"]
-                gid = pay["gid"]
-
-                ghab = self.hby.habs[gid]
-                if ghab is None:
-                    logger.error(f"invalid rotate message, not a local group: {pay}")
-                    continue
-
-                if src not in ghab.smids or src not in ghab.kevers:
-                    logger.error(f"invalid incept message, source not knows or not part of group.  evt: {msg}")
-                    continue
-
-                data = dict(
-                    r='/multisig/ixn',
-                    src=src,
-                    gid=gid,
-                    aids=aids,
-                )
-                data["data"] = pay["data"] if "data" in pay else None
-
-                self.notifier.add(data)
-                yield
-            yield
-
-
-def multisigInteractExn(ghab, aids, data):
+def multisigInteractExn(ghab, aids, ixn):
     """ Create a peer to peer message to propose a multisig group interaction event
 
     Parameters:
-        ghab (Hab): group Hab to endorse the message
+        ghab (GroupHab): group Hab to endorse the message
         aids (list): qb64 identifier prefixes to include in the interaction event
-        data (list): data to anchor in the interaction event
+        ixn (bytes): serialized interaction event with CESR streamed attachments
 
     Returns:
-        Serder: Serder of exn message to send
-        butearray: attachment signatures
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
     """
 
-    exn = exchanging.exchange(route=MultisigInteractHandler.resource, modifiers=dict(),
-                              payload=dict(gid=ghab.pre,
-                                           aids=aids,
-                                           data=data)
-                              )
-    ims = ghab.mhab.endorse(serder=exn, last=True, pipelined=False)
+    embeds = dict(
+        ixn=ixn,
+    )
+
+    exn, end = exchanging.exchange(route="/multisig/ixn", modifiers=dict(),
+                                   payload=dict(gid=ghab.pre,
+                                                smids=aids), sender=ghab.mhab.pre,
+                                   embeds=embeds)
+    ims = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
     atc = bytearray(ims[exn.size:])
+    atc.extend(end)
 
     return exn, atc
 
 
-class MultisigIssueHandler(doing.Doer):
-    """
-    Handler for multisig group issuance notification EXN messages
+def multisigRegistryInceptExn(ghab, usage, vcp, anc):
+    """ Create a peer to peer message to propose a credential registry inception from a multisig group identifier
 
-    """
-    resource = "/multisig/issue"
-
-    def __init__(self, notifier, **kwa):
-        """
-
-        Parameters:
-            mbx (Mailboxer) of format str names accepted for offers
-            controller (str) qb64 identity prefix of controller
-            cues (decking.Deck) of outbound cue messages from handler
-
-        """
-        self.notifier = notifier
-        self.msgs = decking.Deck()
-        self.cues = decking.Deck()
-
-        super(MultisigIssueHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """
-
-        Handle incoming messages by parsing and verifiying the credential and storing it in the wallet
-
-        Parameters:
-            payload is dict representing the body of a multisig/incept message
-            pre is qb64 identifier prefix of sender
-            sigers is list of Sigers representing the sigs on the /credential/issue message
-            verfers is list of Verfers of the keys used to sign the message
-
-        """
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
-
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-                pl = msg["payload"]
-
-                try:
-                    creder = proving.Creder(ked=pl)
-                    data = dict(
-                        r="/multisig/issue",
-                        ked=creder.ked
-                    )
-
-                    self.notifier.add(attrs=data)
-
-                except ValueError as ex:
-                    logger.error(f"unable to process multisig credential issue proposal {pl}: {ex}")
-                yield
-            yield
-
-
-def multisigIssueExn(hab, creder):
-    """ Create a peer to peer message to propose a credential issuance from a multisig group identifier
+    Either rot or ixn are required but not both
 
     Parameters:
-        hab (Hab): identifier Hab for ensorsing the message to send
-        creder (Creder): Creder instance of the issued credential
+        ghab (GroupHab): identifier Hab for ensorsing the message to send
+        usage (str): human readable reason for creating the credential registry
+        vcp (bytes): serialized Credentials registry inception event
+        anc (bytes): CESR stream of serialized and signed event anchoring registry inception event
 
     Returns:
-        Serder: Serder of exn message to send
-        butearray: attachment signatures
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
 
     """
-    exn = exchanging.exchange(route="/multisig/issue", payload=creder.ked)
-    evt = hab.mhab.endorse(serder=exn, last=True, pipelined=False)
+
+    embeds = dict(
+        vcp=vcp,
+        anc=anc
+    )
+
+    exn, end = exchanging.exchange(route="/multisig/vcp", payload={'gid': ghab.pre, 'usage': usage},
+                                   sender=ghab.mhab.pre, embeds=embeds)
+    evt = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
     atc = bytearray(evt[exn.size:])
+    atc.extend(end)
 
     return exn, atc
+
+
+def multisigIssueExn(ghab, acdc, iss, anc):
+    """ Create a peer to peer message to propose a credential creation from a multisig group identifier
+
+    Either rot or ixn are required but not both
+
+    Parameters:
+        ghab (GroupHab): identifier Hab for ensorsing the message to send
+        acdc (bytes): serialized Credential
+        iss (bytes): CESR stream of serialized and TEL issuance event
+        anc (bytes): CESR stream of serialized and signed anchoring event anchoring creation
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
+
+    """
+
+    embeds = dict(
+        acdc=acdc,
+        iss=iss,
+        anc=anc
+    )
+
+    exn, end = exchanging.exchange(route="/multisig/iss", payload={'gid': ghab.pre},
+                                   sender=ghab.mhab.pre, embeds=embeds)
+    evt = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
+    atc = bytearray(evt[exn.size:])
+    atc.extend(end)
+
+    return exn, atc
+
+
+def multisigRevokeExn(ghab, said, rev, anc):
+    """ Create a peer to peer message to propose a credential revocation from a multisig group identifier
+
+    Either rot or ixn are required but not both
+
+    Parameters:
+        ghab (GroupHab): identifier Hab for ensorsing the message to send
+        said (str): qb64 SAID of credential being revoked
+        rev (bytes): CESR stream of serialized and TEL revocation event
+        anc (bytes): CESR stream of serialized and signed anchoring event anchoring revocation
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
+
+    """
+
+    embeds = dict(
+        rev=rev,
+        anc=anc
+    )
+
+    exn, end = exchanging.exchange(route="/multisig/rev", payload={'gid': ghab.pre, 'said': said},
+                                   sender=ghab.mhab.pre, embeds=embeds)
+    evt = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
+    atc = bytearray(evt[exn.size:])
+    atc.extend(end)
+
+    return exn, atc
+
+
+def multisigRpyExn(ghab, rpy):
+    """ Create a peer to peer message to propose a credential revocation from a multisig group identifier
+
+    Either rot or ixn are required but not both
+
+    Parameters:
+        ghab (GroupHab): identifier Hab for ensorsing the message to send
+        rpy (bytes): CESR stream of serialized and reply event
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
+
+    """
+
+    embeds = dict(
+        rpy=rpy
+    )
+
+    exn, end = exchanging.exchange(route="/multisig/rpy", payload={'gid': ghab.pre},
+                                   sender=ghab.mhab.pre, embeds=embeds)
+    evt = ghab.mhab.endorse(serder=exn, last=False, pipelined=False)
+    atc = bytearray(evt[exn.size:])
+    atc.extend(end)
+
+    return exn, atc
+
+
+def multisigExn(ghab, exn):
+    """ Create a peer to peer message to propose a credential issuance from a multisig group identifier
+
+    Either rot or ixn are required but not both
+
+    Parameters:
+        ghab (GroupHab): identifier Hab for ensorsing the message to send
+        exn (bytes): CESR stream of serialized echange message, with signatures
+
+    Returns:
+        tuple: (Serder, bytes): Serder of exn message and CESR attachments
+
+    """
+    embeds = dict(
+        exn=exn
+    )
+
+    wexn, end = exchanging.exchange(route="/multisig/exn", payload={'gid': ghab.pre}, sender=ghab.mhab.pre,
+                                    embeds=embeds)
+    evt = ghab.mhab.endorse(serder=wexn, last=False, pipelined=False)
+    atc = bytearray(evt[wexn.size:])
+    atc.extend(end)
+
+    return wexn, atc
 
 
 def getEscrowedEvent(db, pre, sn):
@@ -655,3 +533,162 @@ def getEscrowedEvent(db, pre, sn):
         msg.extend(couple)
 
     return msg
+
+
+class Multiplexor:
+    """ Multiplexor (mux) is responsible for coordinating peer-to-peer messages between group multisig participants
+
+    When new messages arrive the Mux will associate the SAID of the embedded messages with the exn message said
+    as well as the sender.  This will allow the controller of the participant in the group multisig to have knowledge
+    of who has sent what messages and whether they match.  In addition, if the controller of the local participant
+    has already approved the messages embedded in this exn, the messages will be passed thru a non-local parser.
+
+    Attributes:
+        hby (habbing.Habery): database environment for local Habs
+        rtr (routing.Router): routes reply 'rpy' messages
+        rvy (routing.Revery): factory that processes reply 'rpy' messages
+        exc (exchanging.Exchanger): processor and router for peer-to-peer msgs
+        kvy (eventing.Kevery): factory for local processing of local event msgs
+        psr (parsing.Parser):  parses local messages for .kvy .rvy
+        notifier (notifying.Notifier): stores notices for numan consumption
+
+        Parameters:
+            hby (habbing.Habery): database environment for local Habs
+            notifier (notifying.Notifier): stores notices for numan consumption
+
+
+    """
+
+    def __init__(self, hby, notifier):
+        """ Create Multiplexor for local database and Habs
+
+        Parameters:
+            hby (habbing.Habery): database environment for local Habs
+            notifier (notifying.Notifier): stores notices for numan consumption
+
+        """
+        self.hby = hby
+        self.rtr = routing.Router()
+        self.rvy = routing.Revery(db=self.hby.db, rtr=self.rtr)
+        self.exc = exchanging.Exchanger(hby=self.hby, handlers=[])
+        self.kvy = eventing.Kevery(db=self.hby.db, lax=False, local=False, rvy=self.rvy)
+        self.kvy.registerReplyRoutes(router=self.rtr)
+        self.psr = parsing.Parser(framed=True, kvy=self.kvy, rvy=self.rvy, exc=self.exc)
+
+        self.notifier = notifier
+
+    def add(self, serder):
+        """ Process /multisig message by associating the exn with the SAID of the embedded event section
+
+        Adds the exn message contained in `serder` to the set of messages received for a given set of embedded
+        events.  Ensures this is a /multisig message with the correct properties and then stores the SAID of the
+        exn message and the prefix of the sender associated with the SAID of the embedded event section.  Also
+        sends the controller of the local participant a notice.
+
+        This method will extract and parse the embedded events if the local participant has already approved the
+        events so that any addition signatures can be processed.
+
+        Parameters:
+            serder (coring.Serder): peer-to-peer exn "/multisig" message to coordinate from other participants
+
+        Returns:
+
+        """
+        ked = serder.ked
+        if 'e' not in ked:  # No embedded events
+            return
+
+        embed = ked['e']
+        esaid = embed['d']
+        sender = ked['i']
+        route = ked['r']
+        payload = ked['a']
+
+        # Route specific logic to ensure this is a valid exn for a local participant.
+        match route.split("/"):
+            case ["", "multisig", "icp"]:
+                mids = payload["smids"]
+                if "rmids" in payload:
+                    mids.extend(payload["rmids"])
+                member = any([True for mid in mids if mid in self.hby.kevers])
+                if not member:
+                    raise ValueError(f"invalid request to join group, not member in mids={mids}")
+
+            case ["", "multisig", "rot"]:
+                gid = payload["gid"]
+                if gid not in self.hby.habs:
+                    mids = payload["smids"]
+                    mids.extend(payload["rmids"])
+                    member = any([True for mid in mids if mid in self.hby.kevers])
+                    if not member:
+                        raise ValueError(f"invalid request to join group, not member in mids={mids}")
+
+            case ["", "multisig", *_]:
+                gid = payload["gid"]
+                if gid not in self.hby.habs:
+                    raise ValueError(f"invalid request to participate in group, not member of gid={gid}")
+
+            case _:
+                raise ValueError(f"invalid route {route} for multiplexed exn={ked}")
+
+        if len(self.hby.db.meids.get(keys=(esaid,))) == 0:  # No one has submitted this message yet
+            if sender not in self.hby.habs:  # We are not sending this one, notify us
+                data = dict(
+                    r=route,
+                    d=serder.said
+                )
+
+                self.notifier.add(attrs=data)
+
+        self.hby.db.meids.add(keys=(esaid,), val=serder.saider)
+        self.hby.db.maids.add(keys=(esaid,), val=coring.Prefixer(qb64=serder.pre))
+
+        submitters = self.hby.db.maids.get(keys=(esaid,))
+        if sender not in self.hby.habs:  # We are not sending this one, need to parse if already approved
+
+            # If we've already submitted an identical payload, parse this one because we've approved it
+            approved = any([True for sub in submitters if sub.qb64 in self.hby.kevers])
+            if approved:
+                # Clone exn from database, ensuring it is stored with valid signatures
+                exn, paths = exchanging.cloneMessage(self.hby, said=serder.said)
+                e = exn.ked['e']
+                ims = bytearray()
+
+                # Loop through all the embedded events, extract the attachments for those events...
+                for key, val in e.items():
+                    if not isinstance(val, dict):
+                        continue
+
+                    sadder = coring.Sadder(ked=val)
+                    ims.extend(sadder.raw)
+                    if key in paths:
+                        atc = paths[key]
+                        ims.extend(atc)
+
+                # ... and parse
+                self.psr.parse(ims=ims)
+
+            else:
+                # Should we prod the user with another submission if we haven't already approved it?
+                route = ked['r']
+                data = dict(
+                    r=route,
+                    d=serder.said,
+                    e=embed['d']
+                )
+
+                self.notifier.add(attrs=data)
+
+    def get(self, esaid):
+        saiders = self.hby.db.meids.get(keys=(esaid,))
+
+        exns = []
+        for saider in saiders:
+            exn, paths = exchanging.cloneMessage(hby=self.hby, said=saider.qb64)
+            exns.append(dict(
+                exn=exn.ked,
+                paths={k: path.decode("utf-8") for k, path in paths.items()},
+            ))
+
+        return exns
+

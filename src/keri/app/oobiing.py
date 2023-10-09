@@ -122,24 +122,27 @@ class OobiResource(doing.DoDoer):
         if role in (kering.Roles.witness,):  # Fetch URL OOBIs for all witnesses
             oobis = []
             for wit in hab.kever.wits:
-                urls = hab.fetchUrls(eid=wit, scheme=kering.Schemes.http)
+                urls = hab.fetchUrls(eid=wit, scheme=kering.Schemes.http) or hab.fetchUrls(eid=wit, scheme=kering.Schemes.https)
                 if not urls:
                     rep.status = falcon.HTTP_404
                     rep.text = f"unable to query witness {wit}, no http endpoint"
                     return
 
-                up = urlparse(urls[kering.Schemes.http])
-                oobis.append(f"http://{up.hostname}:{up.port}/oobi/{hab.pre}/witness/{wit}")
+                url = urls[kering.Schemes.http] if kering.Schemes.http in urls else urls[kering.Schemes.https]
+                up = urlparse(url)
+                oobis.append(f"{up.scheme}://{up.hostname}:{up.port}/oobi/{hab.pre}/witness/{wit}")
             res["oobis"] = oobis
         elif role in (kering.Roles.controller,):  # Fetch any controller URL OOBIs
             oobis = []
-            urls = hab.fetchUrls(eid=hab.pre, scheme=kering.Schemes.http)
+            urls = hab.fetchUrls(eid=hab.pre, scheme=kering.Schemes.http) or hab.fetchUrls(eid=hab.pre,
+                                                                                           scheme=kering.Schemes.https)
             if not urls:
                 rep.status = falcon.HTTP_404
                 rep.text = f"unable to query controller {hab.pre}, no http endpoint"
                 return
-            up = urlparse(urls[kering.Schemes.http])
-            oobis.append(f"http://{up.hostname}:{up.port}/oobi/{hab.pre}/controller")
+            url = urls[kering.Schemes.http] if kering.Schemes.http in urls else urls[kering.Schemes.https]
+            up = urlparse(url)
+            oobis.append(f"{up.scheme}://{up.hostname}:{up.port}/oobi/{hab.pre}/controller")
             res["oobis"] = oobis
         else:
             rep.status = falcon.HTTP_404
@@ -158,7 +161,8 @@ class OobiResource(doing.DoDoer):
 
         ---
         summary: Resolve OOBI and assign an alias for the remote identifier
-        description: Resolve OOBI URL or `rpy` message by process results of request and assign 'alias' in contact data for resolved identifier
+        description: Resolve OOBI URL or `rpy` message by process results of request and assign 'alias' in contact data
+                      for resolved identifier
         tags:
            - OOBIs
         requestBody:
@@ -269,69 +273,54 @@ class OobiResource(doing.DoDoer):
         return
 
 
-class OobiRequestHandler(doing.Doer):
+class OobiRequestHandler:
     """
     Handler for oobi notification EXN messages
 
     """
     resource = "/oobis"
 
-    def __init__(self, hby, notifier, **kwa):
+    def __init__(self, hby, notifier):
         """
 
         Parameters:
-            mbx (Mailboxer) of format str names accepted for offers
-            oobiery (Oobiery) OOBI loader
+            hby (Habery) database environment of the controller
+            notifier (Notifier) notifier to convert OOBI request exn messages to controller notifications
 
         """
         self.hby = hby
         self.notifier = notifier
-        self.msgs = decking.Deck()
-        self.cues = decking.Deck()
 
-        super(OobiRequestHandler, self).__init__(**kwa)
-
-    def do(self, tymth, tock=0.0, **opts):
-        """
-
-        Handle incoming messages processing new contacts via OOBIs
+    def handle(self, serder, attachments=None):
+        """  Do route specific processsing of OOBI request messages
 
         Parameters:
+            serder (Serder): Serder of the exn OOBI request message
+            attachments (list): list of tuples of pather, CESR SAD path attachments to the exn event
 
         """
-        self.wind(tymth)
-        self.tock = tock
-        yield self.tock
+        src = serder.pre
+        pay = serder.ked['a']
+        if "oobi" not in pay:
+            print(f"invalid oobi message, missing oobi.  evt={serder.ked}")
+            return
+        oobi = pay["oobi"]
 
-        while True:
-            while self.msgs:
-                msg = self.msgs.popleft()
-                prefixer = msg["pre"]
-                pay = msg["payload"]
-                if "oobi" not in pay:
-                    print(f"invalid oobi message, missing oobi.  evt=: {msg}")
-                    continue
-                oobi = pay["oobi"]
+        obr = basing.OobiRecord(date=helping.nowIso8601())
+        self.hby.db.oobis.pin(keys=(oobi,), val=obr)
 
-                src = prefixer.qb64
-                obr = basing.OobiRecord(date=helping.nowIso8601())
-                self.hby.db.oobis.pin(keys=(oobi,), val=obr)
+        data = dict(
+            r="/oobi",
+            src=src,
+            oobi=oobi
+        )
 
-                data = dict(
-                    r="/oobi",
-                    src=src,
-                    oobi=oobi
-                )
+        purl = parse.urlparse(oobi)
+        params = parse.parse_qs(purl.query)
+        if "name" in params:
+            data["oobialias"] = params["name"][0]
 
-                purl = parse.urlparse(oobi)
-                params = parse.parse_qs(purl.query)
-                if "name" in params:
-                    data["oobialias"] = params["name"][0]
-
-                self.notifier.add(attrs=data)
-
-                yield
-            yield
+        self.notifier.add(attrs=data)
 
 
 def oobiRequestExn(hab, dest, oobi):
@@ -341,9 +330,9 @@ def oobiRequestExn(hab, dest, oobi):
     )
 
     # Create `exn` peer to peer message to notify other participants UI
-    exn = exchanging.exchange(route=OobiRequestHandler.resource, modifiers=dict(),
-                              payload=data)
-    ims = hab.endorse(serder=exn, last=True, pipelined=False)
+    exn, _ = exchanging.exchange(route=OobiRequestHandler.resource, modifiers=dict(),
+                                 payload=data, sender=hab.pre)
+    ims = hab.endorse(serder=exn, last=False, pipelined=False)
     del ims[:exn.size]
 
     return exn, ims
@@ -460,7 +449,7 @@ class Oobiery:
                     self.request(url, obr)
 
             except ValueError as ex:
-                print("error requesting invalid OOBI URL {}", url)
+                print(f"error requesting invalid OOBI URL {ex}", url)
 
     def processClients(self):
         """ Process Client responses by parsing the messages and removing the client/doer
