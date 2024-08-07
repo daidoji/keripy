@@ -766,8 +766,8 @@ class Serder:
             if code in DigDex:  # subclass override if non digestive allowed
                 dig = Diger(ser=raw, code=code).qb64
                 if dig != self._sad[label]:  # compare to original
-                    raise ValidationError(f"Invalid said field '{label}': '{self._sad[label]}'"
-                                          f" in sad = {self._sad}, should be {dig}.")
+                    raise ValidationError(f"Invalid said field '{label}' in sad"
+                                          f" = {self._sad}, should be {dig}.")
                 sad[label] = dig
 
         raw = self.dumps(sad, kind=self.kind)  # compute final raw
